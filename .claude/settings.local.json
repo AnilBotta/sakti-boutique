@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__Claude_Preview__preview_start",
+      "PowerShell(gh auth status 2>&1)",
+      "PowerShell(git init -b main 2>&1)",
+      "PowerShell(git add .)",
+      "PowerShell(git -c user.email=\"anilbabubotta@gmail.com\" -c user.name=\"AnilBotta\" commit -m \"Initial commit: Sakti Boutique scaffolding\" 2>&1)"
+    ]
+  }
+}
