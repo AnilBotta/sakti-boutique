@@ -1,16 +1,17 @@
+'use server';
+
 /**
- * Admin product server action contracts.
+ * Admin product Server Actions.
  *
- * These are the save/update/archive entry points the `ProductEditor` UI will
- * call. Today they run in placeholder mode: validate the payload, map it to
- * the write shape, and return a typed result — no network, no DB write, no
- * persistence. When Supabase credentials arrive, the bodies below plug
- * straight into `AdminProductsRepo.createAdminProduct` etc.
+ * Validates the editor payload, runs through the admin repository, and
+ * revalidates the affected paths so the storefront and admin list reflect
+ * fresh data without a full reload.
  *
- * Mark these `'use server'` inside the route-handler file when you wire them
- * to a real Server Action. They're exported as plain async functions here
- * so they stay importable from client components for the placeholder flow.
+ * In placeholder mode (Supabase service-role unset), these still return
+ * `{ ok: true, mode: 'placeholder' }` so the UI can mark the form clean.
  */
+
+import { revalidatePath, revalidateTag } from 'next/cache';
 
 import type { EditableProduct } from '@/lib/admin/product-editor';
 import { validateEditableProduct, type FieldError } from '@/lib/validation/product';
@@ -20,6 +21,18 @@ import * as AdminProductsRepo from '@/lib/repositories/admin-products';
 export type ActionResult<T = { id: string }> =
   | { ok: true; data: T; mode: 'live' | 'placeholder' }
   | { ok: false; errors: FieldError[]; message?: string };
+
+function revalidateAfterWrite(productId?: string) {
+  // Admin list + edit pages
+  revalidatePath('/admin/products');
+  if (productId) revalidatePath(`/admin/products/${productId}`);
+  // Storefront — homepage and category landings depend on `listProducts`
+  revalidatePath('/');
+  revalidatePath('/women');
+  revalidatePath('/men');
+  revalidatePath('/kids');
+  revalidateTag('products');
+}
 
 export async function saveProductAction(
   product: EditableProduct,
@@ -31,15 +44,16 @@ export async function saveProductAction(
 
   const payload = editableToWritePayload(validation.data);
 
-  const res = product.id.startsWith('u_') || product.id === ''
+  const isNew = product.id.startsWith('u_') || product.id === '';
+  const res = isNew
     ? await AdminProductsRepo.createAdminProduct(payload)
     : await AdminProductsRepo.updateAdminProduct(product.id, payload);
 
   if (res.ok) {
-    return { ok: true, data: { id: 'id' in res.data ? res.data.id : product.id }, mode: 'live' };
+    revalidateAfterWrite(res.data.id);
+    return { ok: true, data: { id: res.data.id }, mode: 'live' };
   }
   if (res.error === 'not_configured') {
-    // Placeholder mode: echo the snapshot back so the UI can mark dirty=false.
     return {
       ok: true,
       data: { id: product.id || 'placeholder' },
@@ -54,7 +68,10 @@ export async function saveProductAction(
 
 export async function archiveProductAction(id: string): Promise<ActionResult> {
   const res = await AdminProductsRepo.archiveAdminProduct(id);
-  if (res.ok) return { ok: true, data: { id }, mode: 'live' };
+  if (res.ok) {
+    revalidateAfterWrite(id);
+    return { ok: true, data: { id }, mode: 'live' };
+  }
   if (res.error === 'not_configured') {
     return { ok: true, data: { id }, mode: 'placeholder' };
   }
