@@ -36,7 +36,14 @@ export async function middleware(req: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (req.nextUrl.pathname.startsWith('/admin')) {
+  // The admin login page itself must always be reachable — otherwise we'd
+  // create an infinite redirect loop. Everything else under /admin/* requires
+  // an admin role.
+  const path = req.nextUrl.pathname;
+  const isAdminRoute = path.startsWith('/admin');
+  const isLoginRoute = path === '/admin/login' || path.startsWith('/admin/login/');
+
+  if (isAdminRoute && !isLoginRoute) {
     const role = (user?.app_metadata as { role?: string } | null)?.role;
     const isAdmin = !!user && role === 'admin';
     // In development we let unauthenticated traffic through so the
@@ -45,8 +52,8 @@ export async function middleware(req: NextRequest) {
     // always requires a real admin role.
     const allowDev = process.env.NODE_ENV !== 'production' && !user;
     if (!isAdmin && !allowDev) {
-      const loginUrl = new URL('/login', req.url);
-      loginUrl.searchParams.set('redirect', req.nextUrl.pathname);
+      const loginUrl = new URL('/admin/login', req.url);
+      loginUrl.searchParams.set('redirect', path);
       return NextResponse.redirect(loginUrl);
     }
   }

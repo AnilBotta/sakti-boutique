@@ -43,7 +43,7 @@ export function LoginForm({ redirectTo }: Props) {
 
   if (status === 'sent') {
     return (
-      <div className="rounded-lg border border-border-hairline bg-bg-subtle p-6">
+      <div className="rounded-md border border-border-hairline bg-bg-subtle p-5">
         <p className="mb-2 text-eyebrow uppercase tracking-[0.14em] text-accent-ember">
           Check your inbox
         </p>
@@ -87,10 +87,6 @@ export function LoginForm({ redirectTo }: Props) {
       >
         {status === 'sending' ? 'Sending link…' : 'Send magic link'}
       </button>
-      <p className="text-caption text-text-muted">
-        We&rsquo;ll never share your email. By continuing you agree to our
-        terms.
-      </p>
     </form>
   );
 }
