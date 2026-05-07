@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 export default function AdminLoginPage({
   searchParams,
 }: {
-  searchParams: { redirect?: string };
+  searchParams: { redirect?: string; error?: string };
 }) {
   return (
     <main className="flex min-h-screen items-center justify-center bg-bg-subtle px-5">
@@ -22,10 +22,20 @@ export default function AdminLoginPage({
         <h1 className="mb-3 text-3xl font-medium tracking-[-0.015em] text-text-primary md:text-4xl">
           Sign in
         </h1>
-        <p className="mb-8 text-body text-text-secondary">
+        <p className="mb-6 text-body text-text-secondary">
           Enter your email to receive a sign-in link. Only authorized admins can
           access the console.
         </p>
+        {searchParams.error ? (
+          <div
+            className="mb-6 rounded-md border border-state-danger/30 bg-state-danger/5 px-4 py-3 text-caption text-state-danger"
+            role="alert"
+          >
+            {searchParams.error === 'missing_code'
+              ? 'The sign-in link is invalid or expired. Please request a new one.'
+              : searchParams.error}
+          </div>
+        ) : null}
         <LoginForm redirectTo={searchParams.redirect ?? '/admin'} />
         <p className="mt-8 text-caption text-text-muted">
           Not an admin?{' '}

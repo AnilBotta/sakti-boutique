@@ -24,9 +24,12 @@ export function LoginForm({ redirectTo }: Props) {
       return;
     }
 
+    // Magic links must land on /auth/callback so the server can exchange
+    // the PKCE code for a session cookie. The original destination travels
+    // along as `?next=...` and the callback redirects there once signed in.
     const emailRedirectTo =
       typeof window !== 'undefined'
-        ? `${window.location.origin}${redirectTo}`
+        ? `${window.location.origin}/auth/callback?next=${encodeURIComponent(redirectTo)}`
         : undefined;
 
     const { error: signInErr } = await supabase.auth.signInWithOtp({
