@@ -7,10 +7,7 @@
  *   - `Product`        — catalog card / PDP shape    (lib/catalog/products.ts)
  *   - `EditableProduct` — admin editor shape         (lib/admin/product-editor.ts)
  *
- * This file is the single place where the conversion happens. When Step 10B
- * replaces placeholder data with real Supabase queries, repositories will
- * return `DbProductFull` and call `dbProductToStorefront` / `dbProductToEditable`
- * here — no component changes required.
+ * This file is the single place where the conversion happens.
  */
 
 import type { Product, Badge } from '@/lib/catalog/products';
@@ -44,7 +41,10 @@ function pickBadge(p: DbProduct): Badge | undefined {
 }
 
 export function dbProductToStorefront(full: DbProductFull): Product {
-  const { product, variants, images, attributes } = full;
+  const variants = full.variants ?? [];
+  const images = full.images ?? [];
+  const attributes = full.attributes ?? [];
+
   const cover =
     images.find((i) => i.is_cover) ??
     images.slice().sort((a, b) => a.position - b.position)[0];
@@ -56,37 +56,24 @@ export function dbProductToStorefront(full: DbProductFull): Product {
     .map((a) => a.value);
 
   return {
-    id: product.id,
-    slug: product.slug,
-    name: product.name,
-    audience: product.audience,
-    category: lookupCategorySlug(product.category_id, full),
-    subcategory: lookupCategorySlug(product.subcategory_id, full),
-    price: Number(product.price),
+    id: full.id,
+    slug: full.slug,
+    name: full.name,
+    audience: full.audience,
+    category: full.category?.slug ?? '',
+    subcategory: full.subcategory?.slug,
+    price: Number(full.price),
     originalPrice:
-      product.original_price != null ? Number(product.original_price) : undefined,
-    badge: pickBadge(product),
+      full.original_price != null ? Number(full.original_price) : undefined,
+    badge: pickBadge(full),
     image: cover?.url ?? '',
     sizes,
     colors,
-    fabric: product.fabric ?? '',
+    fabric: full.fabric ?? '',
     occasion,
-    inStock: product.in_stock,
-    createdAt: product.created_at,
+    inStock: full.in_stock,
+    createdAt: full.created_at,
   };
-}
-
-/**
- * Category slug resolution is a placeholder — repositories currently JOIN
- * categories in when loading a product and can pass the slug through the
- * `attributes` array or as a separate field. Step 10B will replace this with
- * a real join result on `DbProductFull`.
- */
-function lookupCategorySlug(
-  _id: string | null,
-  _full: DbProductFull,
-): string {
-  return '';
 }
 
 // ---------------------------------------------------------------------------
@@ -138,34 +125,36 @@ function dbChannelToEditable(
 }
 
 export function dbProductToEditable(full: DbProductFull): EditableProduct {
-  const { product, variants, images, channelMappings } = full;
+  const variants = full.variants ?? [];
+  const images = full.images ?? [];
+  const channelMappings = full.channel_mappings ?? [];
   const amazon = channelMappings.find((m) => m.channel === 'amazon');
 
   const seo: EditableSeo = {
-    slug: product.slug,
+    slug: full.slug,
     metaTitle: '',
     metaDescription: '',
   };
   const flags: EditableFlags = {
-    featured: product.featured,
-    bestSeller: product.best_seller,
-    newArrival: product.new_arrival,
-    tryOnEnabled: product.try_on_enabled,
+    featured: full.featured,
+    bestSeller: full.best_seller,
+    newArrival: full.new_arrival,
+    tryOnEnabled: full.try_on_enabled,
   };
 
   return {
-    id: product.id,
-    status: product.status as ProductStatus,
-    name: product.name,
-    description: product.description ?? '',
-    fabric: product.fabric ?? '',
-    care: product.care ?? '',
-    audience: product.audience,
-    category: '',      // resolved from joined category row in Step 10B
-    subcategory: undefined,
-    price: Number(product.price),
+    id: full.id,
+    status: full.status as ProductStatus,
+    name: full.name,
+    description: full.description ?? '',
+    fabric: full.fabric ?? '',
+    care: full.care ?? '',
+    audience: full.audience,
+    category: full.category?.slug ?? '',
+    subcategory: full.subcategory?.slug,
+    price: Number(full.price),
     originalPrice:
-      product.original_price != null ? Number(product.original_price) : null,
+      full.original_price != null ? Number(full.original_price) : null,
     variants: variants
       .slice()
       .sort((a, b) => a.position - b.position)
@@ -181,12 +170,30 @@ export function dbProductToEditable(full: DbProductFull): EditableProduct {
 }
 
 // ---------------------------------------------------------------------------
-// Admin `EditableProduct` → DB insert/update payload
+// Admin `EditableProduct` → DB insert/update payload (consumed by the
+// `save_product_full` Postgres RPC).
 // ---------------------------------------------------------------------------
 
 export interface ProductWritePayload {
-  product: Omit<DbProduct, 'id' | 'created_at' | 'updated_at' | 'total_stock' | 'in_stock'> & {
+  product: {
     id?: string;
+    slug: string;
+    name: string;
+    description: string | null;
+    fabric: string | null;
+    care: string | null;
+    audience: 'women' | 'men' | 'kids';
+    /** Slug, resolved to category_id inside the RPC. */
+    category_slug: string;
+    /** Slug, resolved to subcategory_id inside the RPC. */
+    subcategory_slug: string | null;
+    price: number;
+    original_price: number | null;
+    status: 'draft' | 'active' | 'archived';
+    featured: boolean;
+    best_seller: boolean;
+    new_arrival: boolean;
+    try_on_enabled: boolean;
   };
   variants: Array<
     Omit<DbProductVariant, 'id' | 'product_id' | 'created_at' | 'updated_at'> & {
@@ -196,6 +203,7 @@ export interface ProductWritePayload {
   images: Array<
     Omit<DbProductImage, 'id' | 'product_id' | 'created_at' | 'url'> & {
       id?: string;
+      url?: string | null;
     }
   >;
   channel: {
@@ -209,14 +217,15 @@ export interface ProductWritePayload {
 export function editableToWritePayload(p: EditableProduct): ProductWritePayload {
   return {
     product: {
+      id: p.id || undefined,
       slug: p.seo.slug,
       name: p.name,
       description: p.description || null,
       fabric: p.fabric || null,
       care: p.care || null,
       audience: p.audience,
-      category_id: null,        // resolved from `p.category` at save time
-      subcategory_id: null,     // resolved from `p.subcategory` at save time
+      category_slug: p.category,
+      subcategory_slug: p.subcategory ?? null,
       price: p.price,
       original_price: p.originalPrice ?? null,
       status: p.status,
@@ -235,7 +244,11 @@ export function editableToWritePayload(p: EditableProduct): ProductWritePayload 
       position: i,
     })),
     images: p.media.map((m, i) => ({
-      storage_path: m.url,       // real storage path resolved after upload
+      // For external/seeded media, `m.url` is a real URL we keep as-is.
+      // For freshly uploaded media, the upload flow stamps storage_path on `m.url`
+      // before save — until the upload pipeline lands, store the URL as the path.
+      storage_path: m.url,
+      url: m.url || null,
       alt: m.alt || null,
       is_cover: m.isCover,
       position: i,

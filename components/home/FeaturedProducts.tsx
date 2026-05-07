@@ -3,14 +3,15 @@ import { Section, SectionHeading } from '@/components/layout/Section';
 import { ProductGrid } from '@/components/layout/ProductGrid';
 import { Reveal } from '@/components/motion/Reveal';
 import { ProductCard } from '@/components/catalog/ProductCard';
-import { products } from '@/lib/catalog/products';
+import { listProducts } from '@/lib/repositories/catalog';
 
-// Curated homepage selection — first 4 from the catalog with badges first.
-const featured = [...products]
-  .sort((a, b) => (a.badge ? -1 : 1) - (b.badge ? -1 : 1))
-  .slice(0, 4);
-
-export function FeaturedProducts() {
+export async function FeaturedProducts() {
+  const all = await listProducts({ limit: 24 });
+  // Curated homepage selection — first 4, with badged products surfaced first.
+  const featured = all
+    .slice()
+    .sort((a, b) => (a.badge ? -1 : 1) - (b.badge ? -1 : 1))
+    .slice(0, 4);
   return (
     <Section width="editorial">
       <div className="flex items-end justify-between gap-6">

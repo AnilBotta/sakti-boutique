@@ -1,29 +1,26 @@
 /**
  * Product media upload seam.
  *
- * The admin `MediaGalleryField` currently appends a local placeholder tile
- * when an operator clicks the dropzone. In Step 10B, that handler will call
- * `requestProductMediaUpload()` to get a short-lived signed upload URL,
- * PUT the file directly from the browser to Supabase Storage, then call
- * `finalizeProductMedia()` to persist the row in `product_images`.
+ * Three operations:
+ *   - requestProductMediaUpload: returns a short-lived signed upload URL
+ *   - finalizeProductMedia: persists a `product_images` row after the browser PUT
+ *   - reorderProductMedia: atomic position update via the `reorder_product_images` RPC
  *
- * Nothing in this file performs a real upload. It documents the contract
- * and returns typed `not_configured` results so the UI can show a clear
- * message if someone wires the button before credentials exist.
+ * All three require service-role credentials (admin path). Without them the
+ * functions return a typed `not_configured` error so the UI can show a
+ * helpful message rather than failing silently.
  */
+
+import 'server-only';
 
 import {
   isSupabaseAdminConfigured,
   warnOncePlaceholderMode,
 } from '@/lib/supabase/env';
+import { getAdminSupabase } from '@/lib/supabase/server';
 
-/** Bucket name that Step 10B should create in Supabase Storage. */
 export const PRODUCT_MEDIA_BUCKET = 'product-media';
-
-/** Max accepted file size in bytes. Enforced client-side AND by policies. */
 export const PRODUCT_MEDIA_MAX_BYTES = 8 * 1024 * 1024; // 8 MB
-
-/** Accepted MIME types. */
 export const PRODUCT_MEDIA_ACCEPT = ['image/jpeg', 'image/png', 'image/webp'];
 
 export interface RequestUploadInput {
@@ -34,11 +31,11 @@ export interface RequestUploadInput {
 }
 
 export interface SignedUpload {
-  /** Pre-signed URL the browser PUTs the file to. */
   url: string;
-  /** Object key inside the bucket. Persisted on `product_images.storage_path`. */
+  /** Object key inside the bucket. Persist on `product_images.storage_path`. */
   path: string;
-  /** Absolute expiry timestamp for the signed URL. */
+  /** Final public URL the browser can use once upload completes. */
+  publicUrl: string;
   expiresAt: string;
 }
 
@@ -46,10 +43,17 @@ export type UploadResult<T> =
   | { ok: true; data: T }
   | { ok: false; error: 'not_configured' | 'validation' | 'unknown'; message: string };
 
+function slugifyFilename(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9.\-_]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+}
+
 export async function requestProductMediaUpload(
   input: RequestUploadInput,
 ): Promise<UploadResult<SignedUpload>> {
-  // Client-side sanity checks
   if (!PRODUCT_MEDIA_ACCEPT.includes(input.contentType)) {
     return {
       ok: false,
@@ -71,32 +75,39 @@ export async function requestProductMediaUpload(
       ok: false,
       error: 'not_configured',
       message:
-        'Storage uploads require Supabase service-role credentials. Running in placeholder mode.',
+        'Storage uploads require Supabase service-role credentials. Add SUPABASE_SERVICE_ROLE_KEY to .env.local.',
     };
   }
 
-  // LIVE (Step 10B):
-  //   const admin = getAdminSupabase()!;
-  //   const path = `${input.productId}/${crypto.randomUUID()}-${input.filename}`;
-  //   const { data, error } = await admin.storage
-  //     .from(PRODUCT_MEDIA_BUCKET)
-  //     .createSignedUploadUrl(path);
-  //   if (error) return { ok: false, error: 'unknown', message: error.message };
-  //   return {
-  //     ok: true,
-  //     data: {
-  //       url: data.signedUrl,
-  //       path,
-  //       expiresAt: new Date(Date.now() + 60_000).toISOString(),
-  //     },
-  //   };
+  const admin = getAdminSupabase();
+  if (!admin) {
+    return { ok: false, error: 'not_configured', message: 'Admin client unavailable.' };
+  }
 
-  return { ok: false, error: 'unknown', message: 'Not yet implemented' };
+  const path = `${input.productId}/${crypto.randomUUID()}-${slugifyFilename(input.filename)}`;
+  const { data, error } = await admin.storage
+    .from(PRODUCT_MEDIA_BUCKET)
+    .createSignedUploadUrl(path);
+  if (error || !data) {
+    return { ok: false, error: 'unknown', message: error?.message ?? 'Signed URL failed' };
+  }
+  const { data: pub } = admin.storage.from(PRODUCT_MEDIA_BUCKET).getPublicUrl(path);
+  return {
+    ok: true,
+    data: {
+      url: data.signedUrl,
+      path,
+      publicUrl: pub.publicUrl,
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    },
+  };
 }
 
 export interface FinalizeMediaInput {
   productId: string;
   storagePath: string;
+  /** Public URL captured from `requestProductMediaUpload` so we don't recompute. */
+  url?: string;
   alt: string;
   isCover: boolean;
   position: number;
@@ -112,21 +123,51 @@ export async function finalizeProductMedia(
       ok: false,
       error: 'not_configured',
       message:
-        'Storage uploads require Supabase service-role credentials. Running in placeholder mode.',
+        'Storage uploads require Supabase service-role credentials. Add SUPABASE_SERVICE_ROLE_KEY to .env.local.',
     };
   }
-  // LIVE (Step 10B): insert a `product_images` row referencing `storagePath`,
-  // unset previous cover if `isCover` is true (respects the unique partial
-  // index from the migration), and return the new id.
-  void input;
-  return { ok: false, error: 'unknown', message: 'Not yet implemented' };
+  const admin = getAdminSupabase();
+  if (!admin) {
+    return { ok: false, error: 'not_configured', message: 'Admin client unavailable.' };
+  }
+
+  // If this image is being marked as cover, demote any existing cover for the
+  // product first to satisfy the partial-unique index `product_images_one_cover`.
+  if (input.isCover) {
+    const { error: clearErr } = await admin
+      .from('product_images')
+      .update({ is_cover: false })
+      .eq('product_id', input.productId)
+      .eq('is_cover', true);
+    if (clearErr) {
+      return { ok: false, error: 'unknown', message: clearErr.message };
+    }
+  }
+
+  const url =
+    input.url ??
+    admin.storage.from(PRODUCT_MEDIA_BUCKET).getPublicUrl(input.storagePath).data.publicUrl;
+
+  const { data, error } = await admin
+    .from('product_images')
+    .insert({
+      product_id: input.productId,
+      storage_path: input.storagePath,
+      url,
+      alt: input.alt || null,
+      is_cover: input.isCover,
+      position: input.position,
+      width: input.width ?? null,
+      height: input.height ?? null,
+    })
+    .select('id')
+    .single();
+  if (error || !data) {
+    return { ok: false, error: 'unknown', message: error?.message ?? 'Insert failed' };
+  }
+  return { ok: true, data: { id: data.id } };
 }
 
-/**
- * Reorder contract used by a future drag-and-drop handler in
- * `MediaGalleryField`. Takes the ordered list of image ids and persists
- * `position` for each in a single RPC.
- */
 export async function reorderProductMedia(
   productId: string,
   orderedImageIds: string[],
@@ -136,10 +177,19 @@ export async function reorderProductMedia(
       ok: false,
       error: 'not_configured',
       message:
-        'Storage reordering requires Supabase service-role credentials. Running in placeholder mode.',
+        'Storage reordering requires Supabase service-role credentials. Add SUPABASE_SERVICE_ROLE_KEY to .env.local.',
     };
   }
-  void productId;
-  void orderedImageIds;
-  return { ok: false, error: 'unknown', message: 'Not yet implemented' };
+  const admin = getAdminSupabase();
+  if (!admin) {
+    return { ok: false, error: 'not_configured', message: 'Admin client unavailable.' };
+  }
+  const { data, error } = await admin.rpc('reorder_product_images', {
+    p_product_id: productId,
+    p_ids: orderedImageIds,
+  });
+  if (error) {
+    return { ok: false, error: 'unknown', message: error.message };
+  }
+  return { ok: true, data: { count: Number(data ?? 0) } };
 }

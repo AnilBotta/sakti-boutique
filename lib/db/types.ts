@@ -205,14 +205,23 @@ export interface DbTryonJob {
 }
 
 /**
- * Joined shape returned by catalog queries (one product + its variants,
- * images, attributes, and channel mapping). Keeps repositories honest about
- * what they load vs. what components need.
+ * Joined shape returned by catalog queries — a `DbProduct` row with its
+ * variants/images/attributes/channel-mappings inlined, plus resolved
+ * category/subcategory slugs from the FK joins.
+ *
+ * Matches the Supabase `select('*, variants:product_variants(*), ...,
+ * category:categories!products_category_id_fkey(slug,label), ...')` shape.
  */
-export interface DbProductFull {
-  product: DbProduct;
+export interface DbCategoryRef {
+  slug: string;
+  label: string;
+}
+
+export interface DbProductFull extends DbProduct {
   variants: DbProductVariant[];
   images: DbProductImage[];
   attributes: DbProductAttribute[];
-  channelMappings: DbChannelMapping[];
+  channel_mappings: DbChannelMapping[];
+  category: DbCategoryRef | null;
+  subcategory: DbCategoryRef | null;
 }
