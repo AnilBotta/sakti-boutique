@@ -195,6 +195,33 @@ export async function archiveAdminProduct(
   return { ok: true, data: { id } };
 }
 
+/**
+ * Permanent delete. Cascades to variants/images/attributes/channel_mappings
+ * via FK `on delete cascade`. Use sparingly — prefer archive.
+ */
+export async function deleteAdminProduct(
+  id: string,
+): Promise<RepoResult<{ id: string }>> {
+  if (!isSupabaseAdminConfigured()) {
+    return {
+      ok: false,
+      error: 'not_configured',
+      message:
+        'Supabase service-role credentials are not configured. Add SUPABASE_SERVICE_ROLE_KEY to .env.local.',
+    };
+  }
+  const admin = getAdminSupabase();
+  if (!admin) {
+    return { ok: false, error: 'not_configured', message: 'Admin client unavailable.' };
+  }
+  const { error } = await admin.from('products').delete().eq('id', id);
+  if (error) {
+    console.error('[admin-products.delete]', error.message);
+    return { ok: false, error: 'unknown', message: error.message };
+  }
+  return { ok: true, data: { id } };
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------

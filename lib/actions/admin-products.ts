@@ -77,3 +77,15 @@ export async function archiveProductAction(id: string): Promise<ActionResult> {
   }
   return { ok: false, errors: [{ path: 'root', message: res.message }] };
 }
+
+export async function deleteProductAction(id: string): Promise<ActionResult> {
+  const res = await AdminProductsRepo.deleteAdminProduct(id);
+  if (res.ok) {
+    revalidateAfterWrite();
+    return { ok: true, data: { id }, mode: 'live' };
+  }
+  if (res.error === 'not_configured') {
+    return { ok: true, data: { id }, mode: 'placeholder' };
+  }
+  return { ok: false, errors: [{ path: 'root', message: res.message }] };
+}
