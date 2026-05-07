@@ -12,13 +12,6 @@ import { createServerClient } from '@supabase/ssr';
  * a valid session. This is the canonical `@supabase/ssr` middleware pattern.
  */
 export async function middleware(req: NextRequest) {
-  // The auth callback exchanges a PKCE code for a session and writes its own
-  // session cookies onto the redirect response. Don't let the middleware
-  // touch that flow — its cookie refresh would clobber the new session.
-  if (req.nextUrl.pathname.startsWith('/auth/callback')) {
-    return NextResponse.next();
-  }
-
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !anon) return NextResponse.next();

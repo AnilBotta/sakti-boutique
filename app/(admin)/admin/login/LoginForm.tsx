@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { getBrowserSupabase } from '@/lib/supabase/client';
 
 interface Props {
@@ -8,54 +9,38 @@ interface Props {
 }
 
 export function LoginForm({ redirectTo }: Props) {
+  const router = useRouter();
   const [email, setEmail] = useState('');
-  const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
+  const [password, setPassword] = useState('');
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
-    setStatus('sending');
+    setSubmitting(true);
 
     const supabase = getBrowserSupabase();
     if (!supabase) {
-      setStatus('error');
+      setSubmitting(false);
       setError('Authentication is not configured for this environment.');
       return;
     }
 
-    // Magic links must land on /auth/callback so the server can exchange
-    // the PKCE code for a session cookie. The original destination travels
-    // along as `?next=...` and the callback redirects there once signed in.
-    const emailRedirectTo =
-      typeof window !== 'undefined'
-        ? `${window.location.origin}/auth/callback?next=${encodeURIComponent(redirectTo)}`
-        : undefined;
-
-    const { error: signInErr } = await supabase.auth.signInWithOtp({
+    const { error: signInErr } = await supabase.auth.signInWithPassword({
       email,
-      options: { emailRedirectTo },
+      password,
     });
     if (signInErr) {
-      setStatus('error');
+      setSubmitting(false);
       setError(signInErr.message);
       return;
     }
-    setStatus('sent');
-  }
 
-  if (status === 'sent') {
-    return (
-      <div className="rounded-md border border-border-hairline bg-bg-subtle p-5">
-        <p className="mb-2 text-eyebrow uppercase tracking-[0.14em] text-accent-ember">
-          Check your inbox
-        </p>
-        <p className="text-body text-text-primary">
-          We sent a sign-in link to <strong>{email}</strong>. Click it from the
-          same browser to finish signing in.
-        </p>
-      </div>
-    );
+    // Refresh so the new session cookie is read by the next RSC render,
+    // then push to the requested destination.
+    router.refresh();
+    router.push(redirectTo);
   }
 
   return (
@@ -78,6 +63,24 @@ export function LoginForm({ redirectTo }: Props) {
           placeholder="you@example.com"
         />
       </div>
+      <div>
+        <label
+          htmlFor="password"
+          className="mb-2 block text-eyebrow uppercase tracking-[0.14em] text-text-secondary"
+        >
+          Password
+        </label>
+        <input
+          id="password"
+          type="password"
+          required
+          autoComplete="current-password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          className="h-11 w-full rounded-md border border-border-default bg-bg-canvas px-4 text-body text-text-primary outline-none transition-colors duration-fast ease-standard focus:border-accent-ember focus:ring-2 focus:ring-accent-ember/30"
+          placeholder="••••••••"
+        />
+      </div>
       {error ? (
         <p className="text-caption text-state-danger" role="alert">
           {error}
@@ -85,10 +88,10 @@ export function LoginForm({ redirectTo }: Props) {
       ) : null}
       <button
         type="submit"
-        disabled={status === 'sending' || !email}
+        disabled={submitting || !email || !password}
         className="inline-flex h-11 w-full items-center justify-center rounded-md bg-accent-ember px-6 text-button uppercase tracking-[0.02em] text-bg-canvas transition-transform duration-fast ease-standard hover:bg-accent-ember/95 active:scale-[0.985] disabled:cursor-not-allowed disabled:opacity-60"
       >
-        {status === 'sending' ? 'Sending link…' : 'Send magic link'}
+        {submitting ? 'Signing in…' : 'Sign in'}
       </button>
     </form>
   );

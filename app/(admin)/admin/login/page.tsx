@@ -23,8 +23,8 @@ export default function AdminLoginPage({
           Sign in
         </h1>
         <p className="mb-6 text-body text-text-secondary">
-          Enter your email to receive a sign-in link. Only authorized admins can
-          access the console.
+          Sign in with your staff credentials. Accounts are provisioned by the
+          owner — there is no public sign-up.
         </p>
         {searchParams.error ? (
           <div
