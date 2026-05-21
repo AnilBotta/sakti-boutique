@@ -8,6 +8,13 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
+// Admin pages must NEVER cache. Operators expect the screen to reflect
+// the database as of right now. This flag opts the whole (scaffold) group
+// out of Next.js's RSC cache and forces server-side rendering on every
+// request.
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 /**
  * Admin shell: fixed 240px sidebar on lg+, mobile drawer via `AdminTopbar`.
  * Kept server-first; only the topbar and sidebar are client components
