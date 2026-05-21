@@ -1,14 +1,13 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { AdminFormSection } from '@/components/admin/form';
 import type { EditableProduct } from '@/lib/admin/product-editor';
 import {
-  createAdminProductLocal,
-  updateAdminProductLocal,
-  deleteAdminProductLocal,
-} from '@/lib/admin/local-repo/products';
+  saveProductAction,
+  deleteProductAction,
+} from '@/lib/actions/admin-products';
 import { AdminProductStatusBar } from './AdminProductStatusBar';
 import { BasicInfoCard } from './BasicInfoCard';
 import { PricingCard } from './PricingCard';
@@ -41,6 +40,8 @@ export function ProductEditor({ initial, mode }: ProductEditorProps) {
   const [savingState, setSavingState] = useState<'idle' | 'saving' | 'saved'>(
     'idle',
   );
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [, startTransition] = useTransition();
 
   const dirty = JSON.stringify(product) !== JSON.stringify(savedSnapshot);
 
@@ -50,35 +51,48 @@ export function ProductEditor({ initial, mode }: ProductEditorProps) {
 
   const handleSave = () => {
     setSavingState('saving');
-    try {
-      if (mode === 'create') {
-        const saved = createAdminProductLocal(product);
-        setSavedSnapshot(saved);
-        setProduct(saved);
-        setSavingState('saved');
-        router.replace(`/admin/products/${saved.id}`);
+    setSaveError(null);
+    startTransition(async () => {
+      const res = await saveProductAction(product);
+      if (!res.ok) {
+        const msg =
+          res.message ||
+          res.errors?.map((e) => `${e.path}: ${e.message}`).join(', ') ||
+          'Save failed';
+        setSaveError(msg);
+        setSavingState('idle');
+        return;
+      }
+      const savedId = res.data.id;
+      // Refresh the local snapshot so dirty-check resets.
+      const saved: EditableProduct = { ...product, id: savedId };
+      setSavedSnapshot(saved);
+      setProduct(saved);
+      setSavingState('saved');
+      if (mode === 'create' && savedId && savedId !== product.id) {
+        router.replace(`/admin/products/${savedId}`);
       } else {
-        const saved = updateAdminProductLocal(product.id, product);
-        if (saved) {
-          setSavedSnapshot(saved);
-          setProduct(saved);
-        }
-        setSavingState('saved');
+        router.refresh();
       }
       setTimeout(() => setSavingState('idle'), 1800);
-    } catch (err) {
-      console.error('Product save failed', err);
-      setSavingState('idle');
-    }
+    });
   };
   const handleDiscard = () => {
     setProduct(savedSnapshot);
+    setSaveError(null);
   };
   const handleDelete = () => {
     if (mode !== 'edit') return;
     if (!confirm(`Delete "${product.name || 'this product'}"? This cannot be undone.`)) return;
-    deleteAdminProductLocal(product.id);
-    router.replace('/admin/products');
+    startTransition(async () => {
+      const res = await deleteProductAction(product.id);
+      if (!res.ok) {
+        const msg = res.message || 'Delete failed';
+        setSaveError(msg);
+        return;
+      }
+      router.replace('/admin/products');
+    });
   };
 
   return (
@@ -93,6 +107,15 @@ export function ProductEditor({ initial, mode }: ProductEditorProps) {
         onDelete={mode === 'edit' ? handleDelete : undefined}
         savingState={savingState}
       />
+
+      {saveError ? (
+        <div
+          role="alert"
+          className="mt-4 rounded-md border border-state-danger/30 bg-state-danger/5 px-4 py-3 text-caption text-state-danger"
+        >
+          {saveError}
+        </div>
+      ) : null}
 
       <div className="flex flex-col gap-6 pt-6">
         <AdminFormSection

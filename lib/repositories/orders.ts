@@ -6,9 +6,12 @@
  * when Supabase isn't configured.
  */
 
+import 'server-only';
+
 import { recentOrders, type AdminOrderRow, type OrderStatus } from '@/lib/admin/mock-data';
 import {
   isSupabaseConfigured,
+  isSupabaseAdminConfigured,
   warnOncePlaceholderMode,
 } from '@/lib/supabase/env';
 import { getAdminSupabase, getServerSupabase } from '@/lib/supabase/server';
@@ -82,4 +85,78 @@ export async function getOrder(id: string): Promise<AdminOrderRow | null> {
   }
   if (!data) return recentOrders.find((o) => o.id === id) ?? null;
   return toAdminOrderRow(data as unknown as OrderRow);
+}
+
+export type OrderMutationResult =
+  | { ok: true }
+  | { ok: false; error: 'not_configured' | 'unknown'; message: string };
+
+const NEXT_STATUS: Partial<Record<OrderStatus, OrderStatus>> = {
+  pending: 'paid',
+  paid: 'packed',
+  packed: 'shipped',
+  shipped: 'delivered',
+};
+
+export async function advanceOrderStatus(
+  id: string,
+): Promise<OrderMutationResult> {
+  if (!isSupabaseAdminConfigured()) {
+    return {
+      ok: false,
+      error: 'not_configured',
+      message:
+        'Supabase service-role credentials are not configured. Add SUPABASE_SERVICE_ROLE_KEY to .env.local.',
+    };
+  }
+  const admin = getAdminSupabase();
+  if (!admin) {
+    return { ok: false, error: 'not_configured', message: 'Admin client unavailable.' };
+  }
+  // Look up current status by id (UUID or order number).
+  const looksLikeUuid = /^[0-9a-fA-F-]{36}$/.test(id);
+  const { data: current, error: lookupErr } = await admin
+    .from('orders')
+    .select('id, status')
+    .eq(looksLikeUuid ? 'id' : 'number', id)
+    .maybeSingle();
+  if (lookupErr || !current) {
+    return { ok: false, error: 'unknown', message: lookupErr?.message ?? 'Order not found' };
+  }
+  const next = NEXT_STATUS[(current as { status: OrderStatus }).status];
+  if (!next) {
+    return { ok: false, error: 'unknown', message: 'No next status from current state' };
+  }
+  const { error } = await admin
+    .from('orders')
+    .update({ status: next })
+    .eq('id', (current as { id: string }).id);
+  if (error) {
+    return { ok: false, error: 'unknown', message: error.message };
+  }
+  return { ok: true };
+}
+
+export async function cancelOrder(id: string): Promise<OrderMutationResult> {
+  if (!isSupabaseAdminConfigured()) {
+    return {
+      ok: false,
+      error: 'not_configured',
+      message:
+        'Supabase service-role credentials are not configured. Add SUPABASE_SERVICE_ROLE_KEY to .env.local.',
+    };
+  }
+  const admin = getAdminSupabase();
+  if (!admin) {
+    return { ok: false, error: 'not_configured', message: 'Admin client unavailable.' };
+  }
+  const looksLikeUuid = /^[0-9a-fA-F-]{36}$/.test(id);
+  const { error } = await admin
+    .from('orders')
+    .update({ status: 'cancelled' })
+    .eq(looksLikeUuid ? 'id' : 'number', id);
+  if (error) {
+    return { ok: false, error: 'unknown', message: error.message };
+  }
+  return { ok: true };
 }

@@ -1,9 +1,7 @@
-'use client';
-
 import { ProductEditor } from '@/components/admin/product/ProductEditor';
-import { makeEmptyEditableProduct } from '@/lib/admin/product-editor';
+import { newEditableProduct } from '@/lib/repositories/admin-products';
 
 export default function NewProductPage() {
-  const initial = makeEmptyEditableProduct();
+  const initial = newEditableProduct();
   return <ProductEditor initial={initial} mode="create" />;
 }

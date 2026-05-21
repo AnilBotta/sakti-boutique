@@ -8,11 +8,11 @@ import { KpiCard } from '@/components/admin/dashboard/KpiCard';
 import { RevenueChart } from '@/components/admin/dashboard/RevenueChart';
 import { PendingActionsList } from '@/components/admin/dashboard/PendingActionsList';
 import { QuickActions } from '@/components/admin/dashboard/QuickActions';
+import { getDashboardStats } from '@/lib/repositories/admin-stats';
+import { listRecentOrders } from '@/lib/repositories/orders';
+import { listCustomers } from '@/lib/repositories/customers';
 import {
-  dashboardMetrics,
-  recentOrders,
   topProducts,
-  recentCustomers,
   type AdminOrderRow,
   type TopProductRow,
 } from '@/lib/admin/mock-data';
@@ -21,14 +21,13 @@ function usd(n: number) {
   return `$${n.toLocaleString('en-US')}`;
 }
 
-// Last 30 days of revenue — shaped synthetic data so the chart reads as a story.
+// Last 30 days of revenue — synthetic until Stripe is wired and orders flow.
 const revenue30d = [
   3120, 2980, 3420, 3680, 3210, 2840, 3950, 4120, 3760, 3490,
   3880, 4210, 4480, 4150, 3920, 4310, 4670, 4890, 4540, 4280,
   4470, 4710, 4920, 4820, 5040, 4880, 4730, 5120, 5060, 4820,
 ];
 
-// Sparklines for KPI cards
 const revenueSpark = revenue30d.slice(-14);
 const ordersSpark = [22, 18, 24, 28, 25, 21, 27, 31, 29, 26, 32, 30, 28, 31];
 const aovSpark = [142, 148, 151, 154, 159, 156, 162, 158, 155, 160, 156, 154, 158, 156];
@@ -80,19 +79,25 @@ const topCols: AdminColumn<TopProductRow>[] = [
   },
 ];
 
-export default function AdminDashboardPage() {
+export default async function AdminDashboardPage() {
+  const [stats, recentOrders, recentCustomers] = await Promise.all([
+    getDashboardStats(),
+    listRecentOrders(5),
+    listCustomers(5),
+  ]);
+
   const pendingActions = [
     {
       icon: ShoppingCart,
       label: 'orders awaiting fulfillment',
-      count: dashboardMetrics.pendingOrders,
+      count: stats.pendingOrders,
       href: '/admin/orders?status=pending',
       cta: 'Pack & ship today',
     },
     {
       icon: Star,
       label: 'reviews to moderate',
-      count: dashboardMetrics.reviewsPending,
+      count: stats.reviewsPending,
       href: '/admin/reviews',
       cta: 'Approve or hide',
     },
@@ -106,7 +111,7 @@ export default function AdminDashboardPage() {
     {
       icon: AlertTriangle,
       label: 'products below stock threshold',
-      count: dashboardMetrics.lowStockCount,
+      count: stats.lowStockCount,
       href: '/admin/inventory?filter=low',
       cta: 'Restock or hide',
     },
@@ -119,38 +124,36 @@ export default function AdminDashboardPage() {
       description="Today at a glance across storefront, fulfillment, and channels."
       actions={<QuickActions />}
     >
-      {/* KPI strip */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard
           label="Revenue · Today"
-          value={usd(dashboardMetrics.revenueToday)}
-          delta={dashboardMetrics.revenueTodayDelta}
+          value={usd(stats.revenueToday)}
+          delta={stats.revenueTodayDelta}
           helper="vs. yesterday"
           spark={revenueSpark}
         />
         <KpiCard
           label="Orders · Today"
-          value={dashboardMetrics.ordersToday}
-          delta={dashboardMetrics.ordersTodayDelta}
+          value={stats.ordersToday}
+          delta={stats.ordersTodayDelta}
           helper="vs. yesterday"
           spark={ordersSpark}
         />
         <KpiCard
           label="Average Order Value"
-          value={usd(dashboardMetrics.aov)}
-          delta={dashboardMetrics.aovDelta}
+          value={usd(stats.aov)}
+          delta={stats.aovDelta}
           helper="7-day avg"
           spark={aovSpark}
         />
         <KpiCard
           label="Low Stock"
-          value={dashboardMetrics.lowStockCount}
+          value={stats.lowStockCount}
           helper="below threshold"
-          tone={dashboardMetrics.lowStockCount > 0 ? 'warning' : 'neutral'}
+          tone={stats.lowStockCount > 0 ? 'warning' : 'neutral'}
         />
       </div>
 
-      {/* Primary row: chart + pending actions */}
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
         <AdminSectionCard
           title="Revenue · Last 30 days"
@@ -172,7 +175,6 @@ export default function AdminDashboardPage() {
         </AdminSectionCard>
       </div>
 
-      {/* Secondary row: 3 cards */}
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
         <AdminSectionCard
           title="Recent Orders"
@@ -181,7 +183,7 @@ export default function AdminDashboardPage() {
         >
           <AdminTable
             columns={orderCols}
-            rows={recentOrders.slice(0, 5)}
+            rows={recentOrders}
             rowKey={(r) => r.id}
           />
         </AdminSectionCard>
@@ -205,11 +207,8 @@ export default function AdminDashboardPage() {
           bodyClassName="p-0"
         >
           <ul className="divide-y divide-border-hairline">
-            {recentCustomers.slice(0, 5).map((c) => (
-              <li
-                key={c.id}
-                className="flex items-center gap-3 px-6 py-3"
-              >
+            {recentCustomers.map((c) => (
+              <li key={c.id} className="flex items-center gap-3 px-6 py-3">
                 <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center border border-border-hairline bg-bg-subtle text-caption font-medium text-text-primary">
                   {c.name
                     .split(' ')
