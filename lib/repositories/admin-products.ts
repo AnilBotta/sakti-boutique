@@ -23,16 +23,6 @@ import { getAdminSupabase, getServerSupabase } from '@/lib/supabase/server';
 import { dbProductToEditable, type ProductWritePayload } from '@/lib/db/mappers';
 import type { DbProductFull } from '@/lib/db/types';
 
-const FULL_SELECT = `
-  *,
-  variants:product_variants(*),
-  images:product_images(*),
-  attributes:product_attributes(*),
-  channel_mappings(*),
-  category:categories!products_category_id_fkey(slug,label),
-  subcategory:categories!products_subcategory_id_fkey(slug,label)
-`;
-
 /** Lightweight row used by the admin products list page. */
 export interface AdminProductListRow {
   id: string;
@@ -52,6 +42,8 @@ export interface AdminProductListRow {
 }
 
 export async function listAdminProducts(): Promise<AdminProductListRow[]> {
+  // Placeholder mode (no Supabase env): keep the mock catalog so local
+  // demos / CI without credentials still feel populated.
   if (!isSupabaseConfigured()) {
     warnOncePlaceholderMode('admin-products.list');
     return placeholderRows();
@@ -59,17 +51,108 @@ export async function listAdminProducts(): Promise<AdminProductListRow[]> {
   // Prefer the admin client (bypasses RLS, sees draft + archived rows).
   // Fall back to the cookie-aware server client if service role isn't set.
   const db = getAdminSupabase() ?? getServerSupabase();
-  if (!db) return placeholderRows();
-
-  const { data, error } = await db
-    .from('products')
-    .select(FULL_SELECT)
-    .order('created_at', { ascending: false });
-  if (error) {
-    console.error('[admin-products.list]', error.message);
-    return placeholderRows();
+  if (!db) {
+    console.error('[admin-products.list] no Supabase client available');
+    return [];
   }
-  return (data as unknown as DbProductFull[]).map(toListRow);
+
+  // Split the query into pieces so a PostgREST FK-disambiguation error
+  // on the joined select doesn't blank out the whole list. The list view
+  // only needs products + cover image + amazon channel mapping + category
+  // slug — variants and attributes aren't displayed here.
+  const { data: products, error: prodErr } = await db
+    .from('products')
+    .select(
+      'id, slug, name, audience, category_id, subcategory_id, price, original_price, status, try_on_enabled, total_stock',
+    )
+    .order('created_at', { ascending: false });
+  if (prodErr) {
+    console.error('[admin-products.list] products query failed:', prodErr.message);
+    return [];
+  }
+  if (!products || products.length === 0) return [];
+
+  type ProductBase = {
+    id: string;
+    slug: string;
+    name: string;
+    audience: 'women' | 'men' | 'kids';
+    category_id: string | null;
+    subcategory_id: string | null;
+    price: number | string;
+    original_price: number | string | null;
+    status: 'draft' | 'active' | 'archived';
+    try_on_enabled: boolean;
+    total_stock: number;
+  };
+  const productRows = products as unknown as ProductBase[];
+  const productIds = productRows.map((p) => p.id);
+  const categoryIds = Array.from(
+    new Set(
+      productRows
+        .flatMap((p) => [p.category_id, p.subcategory_id])
+        .filter((v): v is string => !!v),
+    ),
+  );
+
+  const [imagesRes, channelRes, categoriesRes] = await Promise.all([
+    db
+      .from('product_images')
+      .select('product_id, url, is_cover, position')
+      .in('product_id', productIds),
+    db
+      .from('channel_mappings')
+      .select('product_id, publish, listing_status')
+      .eq('channel', 'amazon')
+      .in('product_id', productIds),
+    categoryIds.length
+      ? db.from('categories').select('id, slug').in('id', categoryIds)
+      : Promise.resolve({ data: [] as { id: string; slug: string }[], error: null }),
+  ]);
+
+  if (imagesRes.error) console.error('[admin-products.list] images query failed:', imagesRes.error.message);
+  if (channelRes.error) console.error('[admin-products.list] channel_mappings query failed:', channelRes.error.message);
+  if (categoriesRes.error)
+    console.error('[admin-products.list] categories query failed:', categoriesRes.error.message);
+
+  const images = (imagesRes.data ?? []) as Array<{
+    product_id: string;
+    url: string | null;
+    is_cover: boolean;
+    position: number;
+  }>;
+  const channels = (channelRes.data ?? []) as Array<{
+    product_id: string;
+    publish: boolean;
+    listing_status: AdminProductListRow['amazonStatus'];
+  }>;
+  const categoriesMap = new Map<string, string>(
+    ((categoriesRes.data ?? []) as Array<{ id: string; slug: string }>).map((c) => [c.id, c.slug]),
+  );
+
+  return productRows.map((p) => {
+    const productImages = images.filter((i) => i.product_id === p.id);
+    const cover =
+      productImages.find((i) => i.is_cover) ??
+      productImages.slice().sort((a, b) => a.position - b.position)[0];
+    const amazon = channels.find((c) => c.product_id === p.id);
+    return {
+      id: p.id,
+      slug: p.slug,
+      name: p.name,
+      audience: p.audience,
+      category: (p.category_id && categoriesMap.get(p.category_id)) || '',
+      subcategory: (p.subcategory_id && categoriesMap.get(p.subcategory_id)) || undefined,
+      price: Number(p.price),
+      originalPrice: p.original_price != null ? Number(p.original_price) : undefined,
+      status: p.status,
+      stock: p.total_stock,
+      tryOnEnabled: p.try_on_enabled,
+      publishToAmazon: amazon?.publish ?? false,
+      amazonStatus: amazon?.listing_status ?? 'draft',
+      image: cover?.url ?? '',
+    };
+  });
 }
 
 export async function getAdminProduct(
@@ -80,23 +163,65 @@ export async function getAdminProduct(
     return toEditableProduct(idOrSlug);
   }
   const db = getAdminSupabase() ?? getServerSupabase();
-  if (!db) return toEditableProduct(idOrSlug);
+  if (!db) {
+    console.error('[admin-products.get] no Supabase client available');
+    return null;
+  }
 
-  // Heuristic: a UUID has 4 hyphens; otherwise treat the param as a slug.
   const looksLikeUuid = /^[0-9a-fA-F-]{36}$/.test(idOrSlug);
   const filterColumn = looksLikeUuid ? 'id' : 'slug';
 
-  const { data, error } = await db
+  const { data: product, error: prodErr } = await db
     .from('products')
-    .select(FULL_SELECT)
+    .select('*')
     .eq(filterColumn, idOrSlug)
     .maybeSingle();
-  if (error) {
-    console.error('[admin-products.get]', error.message);
+  if (prodErr) {
+    console.error('[admin-products.get] product query failed:', prodErr.message);
     return null;
   }
-  if (!data) return null;
-  return dbProductToEditable(data as unknown as DbProductFull);
+  if (!product) return null;
+  const p = product as unknown as DbProductFull;
+
+  const [variantsRes, imagesRes, attrsRes, channelsRes, categoriesRes] = await Promise.all([
+    db.from('product_variants').select('*').eq('product_id', p.id).order('position'),
+    db.from('product_images').select('*').eq('product_id', p.id).order('position'),
+    db.from('product_attributes').select('*').eq('product_id', p.id).order('position'),
+    db.from('channel_mappings').select('*').eq('product_id', p.id),
+    p.category_id || p.subcategory_id
+      ? db
+          .from('categories')
+          .select('id, slug, label')
+          .in(
+            'id',
+            [p.category_id, p.subcategory_id].filter((v): v is string => !!v),
+          )
+      : Promise.resolve({ data: [] as { id: string; slug: string; label: string }[], error: null }),
+  ]);
+
+  if (variantsRes.error) console.error('[admin-products.get] variants:', variantsRes.error.message);
+  if (imagesRes.error) console.error('[admin-products.get] images:', imagesRes.error.message);
+  if (attrsRes.error) console.error('[admin-products.get] attributes:', attrsRes.error.message);
+  if (channelsRes.error) console.error('[admin-products.get] channel_mappings:', channelsRes.error.message);
+  if (categoriesRes.error) console.error('[admin-products.get] categories:', categoriesRes.error.message);
+
+  const catMap = new Map<string, { slug: string; label: string }>(
+    ((categoriesRes.data ?? []) as Array<{ id: string; slug: string; label: string }>).map((c) => [
+      c.id,
+      { slug: c.slug, label: c.label },
+    ]),
+  );
+
+  const full: DbProductFull = {
+    ...p,
+    variants: (variantsRes.data ?? []) as DbProductFull['variants'],
+    images: (imagesRes.data ?? []) as DbProductFull['images'],
+    attributes: (attrsRes.data ?? []) as DbProductFull['attributes'],
+    channel_mappings: (channelsRes.data ?? []) as DbProductFull['channel_mappings'],
+    category: p.category_id ? catMap.get(p.category_id) ?? null : null,
+    subcategory: p.subcategory_id ? catMap.get(p.subcategory_id) ?? null : null,
+  };
+  return dbProductToEditable(full);
 }
 
 export function newEditableProduct(): EditableProduct {
@@ -225,30 +350,6 @@ export async function deleteAdminProduct(
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function toListRow(full: DbProductFull): AdminProductListRow {
-  const cover =
-    (full.images ?? []).find((i) => i.is_cover) ??
-    (full.images ?? []).slice().sort((a, b) => a.position - b.position)[0];
-  const amazon = (full.channel_mappings ?? []).find((m) => m.channel === 'amazon');
-  return {
-    id: full.id,
-    slug: full.slug,
-    name: full.name,
-    audience: full.audience,
-    category: full.category?.slug ?? '',
-    subcategory: full.subcategory?.slug,
-    price: Number(full.price),
-    originalPrice:
-      full.original_price != null ? Number(full.original_price) : undefined,
-    status: full.status,
-    stock: full.total_stock,
-    tryOnEnabled: full.try_on_enabled,
-    publishToAmazon: amazon?.publish ?? false,
-    amazonStatus: (amazon?.listing_status ?? 'draft') as AdminProductListRow['amazonStatus'],
-    image: cover?.url ?? '',
-  };
-}
 
 function placeholderRows(): AdminProductListRow[] {
   return placeholderProducts.map((p, i) => ({
