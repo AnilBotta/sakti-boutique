@@ -1,34 +1,13 @@
-'use client';
-
-import { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { notFound } from 'next/navigation';
 import { ProductEditor } from '@/components/admin/product/ProductEditor';
-import { getAdminProductLocal } from '@/lib/admin/local-repo/products';
-import type { EditableProduct } from '@/lib/admin/product-editor';
+import { getAdminProduct } from '@/lib/repositories/admin-products';
 
-export default function EditProductPage() {
-  const params = useParams<{ id: string }>();
-  const router = useRouter();
-  const [product, setProduct] = useState<EditableProduct | null | 'loading'>(
-    'loading',
-  );
+interface PageProps {
+  params: { id: string };
+}
 
-  useEffect(() => {
-    const found = getAdminProductLocal(params.id);
-    setProduct(found);
-  }, [params.id]);
-
-  useEffect(() => {
-    if (product === null) router.replace('/admin/products');
-  }, [product, router]);
-
-  if (product === 'loading' || product === null) {
-    return (
-      <div className="flex min-h-[40vh] items-center justify-center text-caption text-text-muted">
-        Loading…
-      </div>
-    );
-  }
-
+export default async function EditProductPage({ params }: PageProps) {
+  const product = await getAdminProduct(params.id);
+  if (!product) notFound();
   return <ProductEditor initial={product} mode="edit" />;
 }
