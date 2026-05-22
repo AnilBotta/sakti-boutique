@@ -3,7 +3,7 @@ import { CollectionHeader } from '@/components/catalog/CollectionHeader';
 import { SubcategoryRail } from '@/components/catalog/SubcategoryRail';
 import { CatalogBrowser } from '@/components/catalog/CatalogBrowser';
 import { taxonomy } from '@/lib/catalog/taxonomy';
-import { productsByAudience } from '@/lib/catalog/products';
+import { listProducts } from '@/lib/repositories/catalog';
 import { categoryImage } from '@/lib/catalog/category-imagery';
 
 export const metadata: Metadata = {
@@ -12,14 +12,14 @@ export const metadata: Metadata = {
     "Hand-embroidered sarees, kurthis, lehengas and more — premium ethnic wear for women, finished with care.",
 };
 
-export default function WomenLandingPage() {
+export default async function WomenLandingPage() {
   const node = taxonomy.women;
   const items = node.categories.map((c) => ({
     label: c.label,
     href: `/women/${c.slug}`,
     image: categoryImage('women', c.slug),
   }));
-  const products = productsByAudience('women');
+  const products = await listProducts({ audience: 'women', limit: 48 });
 
   return (
     <>

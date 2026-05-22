@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation';
 import { CollectionHeader } from '@/components/catalog/CollectionHeader';
 import { CatalogBrowser } from '@/components/catalog/CatalogBrowser';
 import { taxonomy, getCategory, getSubcategory } from '@/lib/catalog/taxonomy';
-import { productsBySubcategory } from '@/lib/catalog/products';
+import { listProducts } from '@/lib/repositories/catalog';
 
 interface PageProps {
   params: { category: string; subcategory: string };
@@ -24,12 +24,17 @@ export function generateMetadata({ params }: PageProps): Metadata {
   };
 }
 
-export default function KidsSubcategoryPage({ params }: PageProps) {
+export default async function KidsSubcategoryPage({ params }: PageProps) {
   const cat = getCategory('kids', params.category);
   const sub = getSubcategory('kids', params.category, params.subcategory);
   if (!cat || !sub) notFound();
 
-  const products = productsBySubcategory('kids', cat.slug, sub.slug);
+  const products = await listProducts({
+    audience: 'kids',
+    category: cat.slug,
+    subcategory: sub.slug,
+    limit: 96,
+  });
 
   const siblings = cat.subcategories.map((s) => ({
     label: s.label,

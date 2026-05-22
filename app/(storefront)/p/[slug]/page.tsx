@@ -9,7 +9,6 @@ import { ProductAccordion } from '@/components/pdp/ProductAccordion';
 import { TryMeBlock } from '@/components/pdp/TryMeBlock';
 import { RelatedProducts } from '@/components/pdp/RelatedProducts';
 import { ProductJsonLd } from '@/components/pdp/ProductJsonLd';
-import { products } from '@/lib/catalog/products';
 import {
   getProductDetails,
   getRelatedProducts,
@@ -21,12 +20,12 @@ interface PageProps {
   params: { slug: string };
 }
 
-export function generateStaticParams() {
-  return products.map((p) => ({ slug: p.slug }));
-}
+// Slugs are dynamic — generated at request time from live DB.
+// (Was statically generated from placeholder catalog before the live wire-up.)
+export const dynamic = 'force-dynamic';
 
-export function generateMetadata({ params }: PageProps): Metadata {
-  const product = getProductDetails(params.slug);
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const product = await getProductDetails(params.slug);
   if (!product) return { title: 'Product not found' };
   return {
     title: product.name,
@@ -39,8 +38,8 @@ export function generateMetadata({ params }: PageProps): Metadata {
   };
 }
 
-export default function ProductPage({ params }: PageProps) {
-  const product = getProductDetails(params.slug);
+export default async function ProductPage({ params }: PageProps) {
+  const product = await getProductDetails(params.slug);
   if (!product) notFound();
 
   const audienceLabel =
@@ -68,7 +67,7 @@ export default function ProductPage({ params }: PageProps) {
   ];
 
   const eyebrow = [audienceLabel, cat?.label].filter(Boolean).join(' · ');
-  const related = getRelatedProducts(product, 4);
+  const related = await getRelatedProducts(product, 4);
   const url = `${siteConfig.url}/p/${product.slug}`;
 
   return (

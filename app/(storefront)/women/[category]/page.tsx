@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation';
 import { CollectionHeader } from '@/components/catalog/CollectionHeader';
 import { CatalogBrowser } from '@/components/catalog/CatalogBrowser';
 import { taxonomy, getCategory } from '@/lib/catalog/taxonomy';
-import { productsByCategory } from '@/lib/catalog/products';
+import { listProducts } from '@/lib/repositories/catalog';
 
 interface PageProps {
   params: { category: string };
@@ -22,11 +22,15 @@ export function generateMetadata({ params }: PageProps): Metadata {
   };
 }
 
-export default function WomenCategoryPage({ params }: PageProps) {
+export default async function WomenCategoryPage({ params }: PageProps) {
   const cat = getCategory('women', params.category);
   if (!cat) notFound();
 
-  const products = productsByCategory('women', cat.slug);
+  const products = await listProducts({
+    audience: 'women',
+    category: cat.slug,
+    limit: 96,
+  });
 
   const siblings = cat.subcategories.length
     ? cat.subcategories.map((s) => ({
