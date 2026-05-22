@@ -231,6 +231,41 @@ export async function getProductBySlug(slug: string): Promise<Product | null> {
   return hydrated[0] ?? null;
 }
 
+/**
+ * All image URLs for a product, cover first then ordered by position.
+ * Used by the PDP gallery. Returns `[]` if no images, no Supabase config,
+ * or the product isn't found.
+ */
+export async function listProductImages(productId: string): Promise<string[]> {
+  if (!isSupabaseConfigured()) return [];
+  const db = getServerSupabase();
+  if (!db) return [];
+
+  const { data, error } = await db
+    .from('product_images')
+    .select('url, is_cover, position')
+    .eq('product_id', productId)
+    .order('position', { ascending: true });
+  if (error) {
+    console.error('[catalog.listProductImages]', error.message);
+    return [];
+  }
+  const rows = (data ?? []) as Array<{
+    url: string | null;
+    is_cover: boolean;
+    position: number;
+  }>;
+  // Cover image first (regardless of its position value), then everything else in position order.
+  const cover = rows.find((r) => r.is_cover);
+  const rest = rows
+    .filter((r) => !r.is_cover)
+    .sort((a, b) => a.position - b.position);
+  return [cover, ...rest]
+    .filter((r): r is { url: string | null; is_cover: boolean; position: number } => !!r)
+    .map((r) => r.url)
+    .filter((u): u is string => !!u);
+}
+
 export async function listRelatedProducts(
   slug: string,
   limit = 4,
