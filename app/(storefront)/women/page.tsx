@@ -4,7 +4,7 @@ import { SubcategoryRail } from '@/components/catalog/SubcategoryRail';
 import { CatalogBrowser } from '@/components/catalog/CatalogBrowser';
 import { taxonomy } from '@/lib/catalog/taxonomy';
 import { listProducts } from '@/lib/repositories/catalog';
-import { categoryImage } from '@/lib/catalog/category-imagery';
+import { listCategoryBannerImages } from '@/lib/catalog/category-imagery.server';
 
 export const metadata: Metadata = {
   title: 'Women',
@@ -14,12 +14,15 @@ export const metadata: Metadata = {
 
 export default async function WomenLandingPage() {
   const node = taxonomy.women;
+  const [banners, products] = await Promise.all([
+    listCategoryBannerImages('women', node.categories),
+    listProducts({ audience: 'women', limit: 48 }),
+  ]);
   const items = node.categories.map((c) => ({
     label: c.label,
     href: `/women/${c.slug}`,
-    image: categoryImage('women', c.slug),
+    image: banners[c.slug]?.src ?? '',
   }));
-  const products = await listProducts({ audience: 'women', limit: 48 });
 
   return (
     <>
