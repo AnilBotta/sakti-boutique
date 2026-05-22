@@ -170,9 +170,10 @@ export function ProductEditor({ initial, mode }: ProductEditorProps) {
           step="06"
           eyebrow="Media"
           title="Gallery and cover image"
-          description="The cover image appears first on category grids and PDP. Upload workflows activate once Supabase Storage is wired."
+          description="The cover image appears first on category grids and PDP. Drag tiles to reorder, click the star to change the cover."
         >
           <MediaGalleryField
+            productId={product.id}
             media={product.media}
             onChange={(next) => patch({ media: next })}
           />
