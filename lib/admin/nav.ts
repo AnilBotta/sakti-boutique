@@ -10,6 +10,7 @@ import {
   Sparkles,
   Boxes,
   BellRing,
+  Image as ImageIcon,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -33,6 +34,7 @@ export type AdminNavKey =
   | 'reviews'
   | 'alerts'
   | 'content'
+  | 'storefrontImagery'
   | 'amazon'
   | 'tryon';
 
@@ -192,6 +194,15 @@ export const adminNav: AdminNavGroup[] = [
         eyebrow: 'Content',
         description: 'About, FAQ, Contact, lookbooks, and editorial pages.',
         scaffoldOnly: true,
+      },
+      {
+        key: 'storefrontImagery',
+        label: 'Storefront Imagery',
+        href: '/admin/storefront-imagery',
+        section: 'channels',
+        icon: ImageIcon,
+        eyebrow: 'Storefront',
+        description: 'Upload editorial images shown on the customer homepage.',
       },
       {
         key: 'amazon',
