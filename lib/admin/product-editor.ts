@@ -39,6 +39,8 @@ export interface EditableMedia {
   url: string;
   alt: string;
   isCover: boolean;
+  /** Object key in the `product-media` bucket. Set for freshly uploaded media. */
+  storagePath?: string;
 }
 
 export interface EditableSeo {
@@ -111,6 +113,7 @@ export function makeEmptyMedia(overrides: Partial<EditableMedia> = {}): Editable
     url: '',
     alt: '',
     isCover: false,
+    storagePath: undefined,
     ...overrides,
   };
 }

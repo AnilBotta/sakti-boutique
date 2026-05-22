@@ -98,6 +98,7 @@ function dbImageToEditable(img: DbProductImage): EditableMedia {
     url: img.url ?? '',
     alt: img.alt ?? '',
     isCover: img.is_cover,
+    storagePath: img.storage_path || undefined,
   };
 }
 
@@ -244,10 +245,10 @@ export function editableToWritePayload(p: EditableProduct): ProductWritePayload 
       position: i,
     })),
     images: p.media.map((m, i) => ({
-      // For external/seeded media, `m.url` is a real URL we keep as-is.
-      // For freshly uploaded media, the upload flow stamps storage_path on `m.url`
-      // before save — until the upload pipeline lands, store the URL as the path.
-      storage_path: m.url,
+      // Freshly uploaded media carries the real object key in `storagePath`.
+      // External/seeded media (e.g. Unsplash URLs) has no storage_path — fall back to url
+      // so the not-null DB column is satisfied.
+      storage_path: m.storagePath || m.url,
       url: m.url || null,
       alt: m.alt || null,
       is_cover: m.isCover,
