@@ -13,6 +13,7 @@ interface SlotMeta {
 }
 
 const SLOT_META: Record<SiteImageSlot, SlotMeta> = {
+  // -- Audience tiles ------------------------------------------------------
   audience_women: {
     label: 'Women audience tile',
     description:
@@ -28,6 +29,7 @@ const SLOT_META: Record<SiteImageSlot, SlotMeta> = {
     description:
       'The Kids card in the "Three collections, one atelier" section on the homepage.',
   },
+  // -- Featured silhouettes (Women) ----------------------------------------
   women_featured_kurthis: {
     label: 'Women — Kurthis tile',
     description:
@@ -52,6 +54,87 @@ const SLOT_META: Record<SiteImageSlot, SlotMeta> = {
     label: 'Women — Readymade Blouse tile',
     description:
       'The Readymade Blouse card in the "Featured silhouettes" rail on the homepage.',
+  },
+  // -- Editorial -----------------------------------------------------------
+  brand_story: {
+    label: 'Brand story image',
+    description:
+      'The image beside the "Slow craft. Modern soul." block on the homepage.',
+  },
+  tryon_teaser: {
+    label: 'Try-On teaser image',
+    description:
+      'The image beside the "See how it looks on you." Try-On promo on the homepage.',
+  },
+  lookbook_1: {
+    label: 'Lookbook — frame 1 (left/large)',
+    description:
+      'The largest lookbook frame on the left of "A festive lookbook" on the homepage.',
+  },
+  lookbook_2: {
+    label: 'Lookbook — frame 2 (top right)',
+    description: 'Top-right frame in the lookbook grid.',
+  },
+  lookbook_3: {
+    label: 'Lookbook — frame 3 (middle right)',
+    description: 'Middle-right frame in the lookbook grid (desktop only).',
+  },
+  lookbook_4: {
+    label: 'Lookbook — frame 4 (full width)',
+    description: 'Wide frame across the bottom of the lookbook grid.',
+  },
+  // -- Category banners — Women -------------------------------------------
+  category_women_kurthis: {
+    label: 'Women → Kurthis banner',
+    description:
+      'The image used for the Kurthis tile on /women and the banner area of /women/kurthis.',
+  },
+  category_women_salwar_suit: {
+    label: 'Women → Salwar Suit banner',
+    description:
+      'The image used for the Salwar Suit tile on /women and the banner area of /women/salwar-suit.',
+  },
+  category_women_sarees: {
+    label: 'Women → Sarees banner',
+    description:
+      'The image used for the Sarees tile on /women and the banner area of /women/sarees.',
+  },
+  category_women_lehenga: {
+    label: 'Women → Lehenga banner',
+    description:
+      'The image used for the Lehenga tile on /women and the banner area of /women/lehenga.',
+  },
+  category_women_readymade_blouse: {
+    label: 'Women → Readymade Blouse banner',
+    description:
+      'The image used for the Readymade Blouse tile on /women and /women/readymade-blouse.',
+  },
+  // -- Category banners — Men ---------------------------------------------
+  category_men_kurtha: {
+    label: 'Men → Kurtha banner',
+    description: 'Used for the Kurtha tile on /men and /men/kurtha.',
+  },
+  category_men_kurtha_pyjama: {
+    label: 'Men → Kurtha / Pyjama banner',
+    description:
+      'Used for the Kurtha / Pyjama tile on /men and /men/kurtha-pyjama.',
+  },
+  category_men_shirts: {
+    label: 'Men → Shirts banner',
+    description: 'Used for the Shirts tile on /men and /men/shirts.',
+  },
+  category_men_dhoti: {
+    label: 'Men → Dhoti banner',
+    description: 'Used for the Dhoti tile on /men and /men/dhoti.',
+  },
+  // -- Category banners — Kids --------------------------------------------
+  category_kids_kurthis: {
+    label: 'Kids → Kurthis banner',
+    description: 'Used for the Kurthis tile on /kids and /kids/kurthis.',
+  },
+  category_kids_salwar_suit: {
+    label: 'Kids → Salwar Suit banner',
+    description: 'Used for the Salwar Suit tile on /kids and /kids/salwar-suit.',
   },
 };
 
@@ -78,6 +161,44 @@ const SLOT_GROUPS: SlotGroup[] = [
       'women_featured_lehenga',
       'women_featured_readymade_blouse',
     ],
+  },
+  {
+    title: 'Editorial',
+    description: 'Brand story, Try-On teaser, and the lookbook montage.',
+    slots: [
+      'brand_story',
+      'tryon_teaser',
+      'lookbook_1',
+      'lookbook_2',
+      'lookbook_3',
+      'lookbook_4',
+    ],
+  },
+  {
+    title: 'Category banners — Women',
+    description: 'Replaces the tile + banner image for each Women category page.',
+    slots: [
+      'category_women_kurthis',
+      'category_women_salwar_suit',
+      'category_women_sarees',
+      'category_women_lehenga',
+      'category_women_readymade_blouse',
+    ],
+  },
+  {
+    title: 'Category banners — Men',
+    description: 'Replaces the tile + banner image for each Men category page.',
+    slots: [
+      'category_men_kurtha',
+      'category_men_kurtha_pyjama',
+      'category_men_shirts',
+      'category_men_dhoti',
+    ],
+  },
+  {
+    title: 'Category banners — Kids',
+    description: 'Replaces the tile + banner image for each Kids category page.',
+    slots: ['category_kids_kurthis', 'category_kids_salwar_suit'],
   },
 ];
 

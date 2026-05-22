@@ -1,4 +1,8 @@
-// Category and subcategory imagery for landings/rails. Until CMS lands.
+// Category and subcategory imagery for landings/rails.
+//
+// This file is **client-safe** — sync only, no `server-only` imports.
+// The CMS-aware async resolvers that hit Supabase live in
+// `lib/catalog/category-imagery.server.ts`.
 
 export const categoryImagery: Record<string, string> = {
   'women/kurthis':

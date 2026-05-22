@@ -13,6 +13,19 @@ import { Section } from '@/components/layout/Section';
 import { EditorialBlock } from '@/components/layout/EditorialBlock';
 import { Reveal } from '@/components/motion/Reveal';
 
+interface BrandStoryProps {
+  /**
+   * Optional override fetched server-side from `site_imagery` slot `brand_story`.
+   * When omitted, falls back to the hardcoded URL.
+   */
+  imageUrl?: string;
+  imageAlt?: string;
+}
+
+const FALLBACK_IMAGE =
+  'https://images.unsplash.com/photo-1583391733956-6c78276477e2?auto=format&fit=crop&w=1400&q=85';
+const FALLBACK_ALT = 'Hand embroidery in progress at the Sakthi atelier';
+
 /**
  * BrandStory — signature panel-settle interaction.
  * As the user scrolls past this section, its image scales down and
@@ -20,9 +33,12 @@ import { Reveal } from '@/components/motion/Reveal';
  * illusion that the panel "docks" into TryOnTeaser.
  * Desktop-only; mobile gets a simple fade-in via <Reveal>.
  */
-export function BrandStory() {
+export function BrandStory({ imageUrl, imageAlt }: BrandStoryProps = {}) {
   const reduced = useReducedMotion();
   const sectionRef = useRef<HTMLDivElement>(null);
+  const src = imageUrl || FALLBACK_IMAGE;
+  const alt = imageAlt || FALLBACK_ALT;
+  const uploaded = !!imageUrl;
 
   const { scrollYProgress } = useScroll({
     target: sectionRef,
@@ -52,22 +68,24 @@ export function BrandStory() {
                 className="relative hidden aspect-[4/5] w-full overflow-hidden bg-bg-muted will-change-transform md:block"
               >
                 <Image
-                  src="https://images.unsplash.com/photo-1583391733956-6c78276477e2?auto=format&fit=crop&w=1400&q=85"
-                  alt="Hand embroidery in progress at the Sakthi atelier"
+                  src={src}
+                  alt={alt}
                   fill
                   sizes="(min-width: 768px) 58vw, 100vw"
                   className="object-cover"
+                  unoptimized={uploaded}
                 />
               </motion.div>
               {/* Mobile — simple fade-in */}
               <Reveal as="div" className="md:hidden">
                 <div className="relative aspect-[4/5] w-full overflow-hidden bg-bg-muted">
                   <Image
-                    src="https://images.unsplash.com/photo-1583391733956-6c78276477e2?auto=format&fit=crop&w=1400&q=85"
-                    alt="Hand embroidery in progress at the Sakthi atelier"
+                    src={src}
+                    alt={alt}
                     fill
                     sizes="100vw"
                     className="object-cover"
+                    unoptimized={uploaded}
                   />
                 </div>
               </Reveal>

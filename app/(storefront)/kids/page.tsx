@@ -4,7 +4,7 @@ import { SubcategoryRail } from '@/components/catalog/SubcategoryRail';
 import { CatalogBrowser } from '@/components/catalog/CatalogBrowser';
 import { taxonomy } from '@/lib/catalog/taxonomy';
 import { listProducts } from '@/lib/repositories/catalog';
-import { categoryImage } from '@/lib/catalog/category-imagery';
+import { listCategoryBannerImages } from '@/lib/catalog/category-imagery.server';
 
 export const metadata: Metadata = {
   title: 'Kids',
@@ -14,12 +14,15 @@ export const metadata: Metadata = {
 
 export default async function KidsLandingPage() {
   const node = taxonomy.kids;
+  const [banners, products] = await Promise.all([
+    listCategoryBannerImages('kids', node.categories),
+    listProducts({ audience: 'kids', limit: 48 }),
+  ]);
   const items = node.categories.map((c) => ({
     label: c.label,
     href: `/kids/${c.slug}`,
-    image: categoryImage('kids', c.slug),
+    image: banners[c.slug]?.src ?? '',
   }));
-  const products = await listProducts({ audience: 'kids', limit: 48 });
 
   return (
     <>

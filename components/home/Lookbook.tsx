@@ -3,8 +3,33 @@ import Link from 'next/link';
 import { Section, SectionHeading } from '@/components/layout/Section';
 import { Reveal } from '@/components/motion/Reveal';
 import { lookbookImages } from '@/lib/home/placeholder-data';
+import {
+  listSiteImages,
+  type SiteImageSlot,
+} from '@/lib/repositories/site-imagery';
 
-export function Lookbook() {
+const LOOKBOOK_SLOTS: SiteImageSlot[] = [
+  'lookbook_1',
+  'lookbook_2',
+  'lookbook_3',
+  'lookbook_4',
+];
+
+export async function Lookbook() {
+  // Fetch all four lookbook slots in one round-trip. Each frame falls back
+  // to the hardcoded URL when no upload exists yet.
+  const slots = await listSiteImages(LOOKBOOK_SLOTS);
+
+  const frames = LOOKBOOK_SLOTS.map((slot, i) => {
+    const fallback = lookbookImages[i];
+    const uploaded = slots[slot];
+    return {
+      src: uploaded?.url || fallback.src,
+      alt: uploaded?.alt || fallback.alt,
+      uploaded: !!uploaded?.url,
+    };
+  });
+
   return (
     <Section width="editorial">
       <SectionHeading
@@ -18,11 +43,12 @@ export function Lookbook() {
         <Reveal className="md:col-span-7">
           <div className="relative aspect-[4/5] w-full overflow-hidden bg-bg-muted md:aspect-[5/6]">
             <Image
-              src={lookbookImages[0].src}
-              alt={lookbookImages[0].alt}
+              src={frames[0].src}
+              alt={frames[0].alt}
               fill
               sizes="(min-width: 768px) 58vw, 50vw"
               className="object-cover"
+              unoptimized={frames[0].uploaded}
             />
           </div>
         </Reveal>
@@ -31,22 +57,24 @@ export function Lookbook() {
           <Reveal delay={0.08}>
             <div className="relative aspect-[4/5] w-full overflow-hidden bg-bg-muted">
               <Image
-                src={lookbookImages[1].src}
-                alt={lookbookImages[1].alt}
+                src={frames[1].src}
+                alt={frames[1].alt}
                 fill
                 sizes="(min-width: 768px) 42vw, 50vw"
                 className="object-cover"
+                unoptimized={frames[1].uploaded}
               />
             </div>
           </Reveal>
           <Reveal delay={0.16} className="hidden md:block">
             <div className="relative aspect-[4/3] w-full overflow-hidden bg-bg-muted">
               <Image
-                src={lookbookImages[2].src}
-                alt={lookbookImages[2].alt}
+                src={frames[2].src}
+                alt={frames[2].alt}
                 fill
                 sizes="42vw"
                 className="object-cover"
+                unoptimized={frames[2].uploaded}
               />
             </div>
           </Reveal>
@@ -55,11 +83,12 @@ export function Lookbook() {
         <Reveal delay={0.12} className="col-span-2 md:col-span-12">
           <div className="relative mt-2 aspect-[16/9] w-full overflow-hidden bg-bg-muted md:mt-2 md:aspect-[21/9]">
             <Image
-              src={lookbookImages[3].src}
-              alt={lookbookImages[3].alt}
+              src={frames[3].src}
+              alt={frames[3].alt}
               fill
               sizes="100vw"
               className="object-cover"
+              unoptimized={frames[3].uploaded}
             />
           </div>
         </Reveal>

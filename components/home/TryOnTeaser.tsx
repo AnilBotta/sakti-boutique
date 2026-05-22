@@ -13,14 +13,30 @@ import {
 import { Section } from '@/components/layout/Section';
 import { Reveal } from '@/components/motion/Reveal';
 
+interface TryOnTeaserProps {
+  /**
+   * Optional override fetched server-side from `site_imagery` slot `tryon_teaser`.
+   * When omitted, falls back to the hardcoded URL.
+   */
+  imageUrl?: string;
+  imageAlt?: string;
+}
+
+const FALLBACK_IMAGE =
+  'https://images.unsplash.com/photo-1610030469668-8e4a0e5c7f5e?auto=format&fit=crop&w=1100&q=85';
+const FALLBACK_ALT = 'Try Me virtual try-on preview';
+
 /**
  * TryOnTeaser — receives the panel-settle handoff from BrandStory.
  * Its image appears to "arrive" as the user scrolls in, completing
  * the signature docking interaction. Mobile gets a simple fade-in.
  */
-export function TryOnTeaser() {
+export function TryOnTeaser({ imageUrl, imageAlt }: TryOnTeaserProps = {}) {
   const reduced = useReducedMotion();
   const sectionRef = useRef<HTMLDivElement>(null);
+  const src = imageUrl || FALLBACK_IMAGE;
+  const alt = imageAlt || FALLBACK_ALT;
+  const uploaded = !!imageUrl;
 
   const { scrollYProgress } = useScroll({
     target: sectionRef,
@@ -41,22 +57,24 @@ export function TryOnTeaser() {
               className="relative hidden aspect-[4/5] w-full overflow-hidden rounded-lg bg-bg-canvas will-change-transform md:block"
             >
               <Image
-                src="https://images.unsplash.com/photo-1610030469668-8e4a0e5c7f5e?auto=format&fit=crop&w=1100&q=85"
-                alt="Try Me virtual try-on preview"
+                src={src}
+                alt={alt}
                 fill
                 sizes="(min-width: 768px) 42vw, 100vw"
                 className="object-cover"
+                unoptimized={uploaded}
               />
             </motion.div>
             {/* Mobile — simple Reveal fade */}
             <Reveal as="div" className="md:hidden">
               <div className="relative aspect-[4/5] w-full overflow-hidden bg-bg-canvas">
                 <Image
-                  src="https://images.unsplash.com/photo-1610030469668-8e4a0e5c7f5e?auto=format&fit=crop&w=1100&q=85"
-                  alt="Try Me virtual try-on preview"
+                  src={src}
+                  alt={alt}
                   fill
                   sizes="100vw"
                   className="object-cover"
+                  unoptimized={uploaded}
                 />
               </div>
             </Reveal>

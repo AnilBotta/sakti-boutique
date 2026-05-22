@@ -27,6 +27,29 @@ export const SITE_IMAGE_SLOTS = [
   'women_featured_sarees',
   'women_featured_lehenga',
   'women_featured_readymade_blouse',
+  // Homepage editorial blocks
+  'brand_story',
+  'tryon_teaser',
+  'lookbook_1',
+  'lookbook_2',
+  'lookbook_3',
+  'lookbook_4',
+  // Category banners — shown as the SubcategoryRail tile images on the
+  // audience landing pages (/women, /men, /kids).
+  // Women (5)
+  'category_women_kurthis',
+  'category_women_salwar_suit',
+  'category_women_sarees',
+  'category_women_lehenga',
+  'category_women_readymade_blouse',
+  // Men (4)
+  'category_men_kurtha',
+  'category_men_kurtha_pyjama',
+  'category_men_shirts',
+  'category_men_dhoti',
+  // Kids (2)
+  'category_kids_kurthis',
+  'category_kids_salwar_suit',
 ] as const;
 export type SiteImageSlot = (typeof SITE_IMAGE_SLOTS)[number];
 
