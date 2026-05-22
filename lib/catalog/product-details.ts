@@ -6,6 +6,7 @@
 import type { Product } from './products';
 import {
   getProductBySlug,
+  listProductImages,
   listRelatedProducts,
 } from '@/lib/repositories/catalog';
 
@@ -96,7 +97,10 @@ function describe(p: Product): { short: string; full: string } {
   return { short, full };
 }
 
-export function enrichProduct(p: Product): ProductDetails {
+export function enrichProduct(
+  p: Product,
+  galleryImages?: string[],
+): ProductDetails {
   const { short, full } = describe(p);
   const sizeRows =
     p.audience === 'women'
@@ -104,6 +108,16 @@ export function enrichProduct(p: Product): ProductDetails {
       : p.audience === 'men'
         ? menSizeRows.filter((r) => p.sizes.includes(r.size))
         : kidsSizeRows.filter((r) => p.sizes.includes(r.size));
+
+  // Real gallery from product_images table. Falls back to the cover URL
+  // (single image, not the old 4x repetition) when no images are returned —
+  // happens for legacy products that only have a single cover.
+  const images =
+    galleryImages && galleryImages.length > 0
+      ? galleryImages
+      : p.image
+        ? [p.image]
+        : [];
 
   return {
     ...p,
@@ -115,7 +129,7 @@ export function enrichProduct(p: Product): ProductDetails {
     shippingSummary:
       'Complimentary US shipping on orders over $150. Standard delivery in 3–5 business days.',
     returnSummary: '14-day easy returns. Items must be unworn with tags attached.',
-    images: [p.image, p.image, p.image, p.image],
+    images,
     sizeGuide: {
       note:
         sizeRows.length > 0
@@ -133,7 +147,12 @@ export async function getProductDetails(
   slug: string,
 ): Promise<ProductDetails | null> {
   const base = await getProductBySlug(slug);
-  return base ? enrichProduct(base) : null;
+  if (!base) return null;
+  // Fetch the full image gallery in parallel-friendly form (caller already
+  // awaited the product; this second round-trip is cheap and unblocks the
+  // PDP from the single-cover-only constraint).
+  const images = await listProductImages(base.id);
+  return enrichProduct(base, images);
 }
 
 export async function getRelatedProducts(
