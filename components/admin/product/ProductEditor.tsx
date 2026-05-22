@@ -127,6 +127,11 @@ export function ProductEditor({ initial, mode }: ProductEditorProps) {
     setProduct(savedSnapshot);
     setFieldErrors(null);
     setTopMessage(null);
+    // Recompute slug auto-sync from the snapshot we're reverting to. Without
+    // this, a user who manually edited the slug once (turning auto-sync off)
+    // and then hit Discard would lose live slug derivation against the
+    // freshly-blank name field — surprising behaviour after a "revert".
+    setSlugAutoSynced(mode === 'create' && !savedSnapshot.seo.slug);
   };
   const handleDelete = () => {
     if (mode !== 'edit') return;
@@ -228,6 +233,7 @@ export function ProductEditor({ initial, mode }: ProductEditorProps) {
           description="The cover image appears first on category grids and PDP. Drag tiles to reorder, click the star to change the cover."
         >
           <MediaGalleryField
+            productId={product.id}
             media={product.media}
             onChange={(next) => patch({ media: next })}
             errors={fieldErrors}
