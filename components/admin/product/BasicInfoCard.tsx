@@ -6,21 +6,33 @@ import {
   AdminTextarea,
 } from '@/components/admin/form';
 import type { EditableProduct } from '@/lib/admin/product-editor';
+import { errorFor } from '@/lib/admin/field-errors';
+import type { FieldError } from '@/lib/validation/product';
 
 interface BasicInfoCardProps {
   product: EditableProduct;
   onChange: (patch: Partial<EditableProduct>) => void;
+  errors?: FieldError[] | null;
 }
 
-export function BasicInfoCard({ product, onChange }: BasicInfoCardProps) {
+export function BasicInfoCard({ product, onChange, errors }: BasicInfoCardProps) {
+  const nameError = errorFor(errors, 'name');
+  const descError = errorFor(errors, 'description');
+
   return (
     <div className="flex flex-col gap-5">
-      <AdminFieldRow label="Product name" htmlFor="name" required>
+      <AdminFieldRow
+        label="Product name"
+        htmlFor="name"
+        required
+        error={nameError}
+      >
         <AdminInput
           id="name"
           value={product.name}
           onChange={(e) => onChange({ name: e.target.value })}
           placeholder="Aanya Hand-Embroidered Kurthi Set"
+          invalid={!!nameError}
         />
       </AdminFieldRow>
 
@@ -28,6 +40,7 @@ export function BasicInfoCard({ product, onChange }: BasicInfoCardProps) {
         label="Description"
         htmlFor="description"
         helper="Displayed on the product detail page. Keep it editorial and specific."
+        error={descError}
       >
         <AdminTextarea
           id="description"

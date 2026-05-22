@@ -13,10 +13,31 @@
 
 import { revalidatePath, revalidateTag } from 'next/cache';
 
-import type { EditableProduct } from '@/lib/admin/product-editor';
+import {
+  generateSku,
+  slugify,
+  type EditableProduct,
+} from '@/lib/admin/product-editor';
 import { validateEditableProduct, type FieldError } from '@/lib/validation/product';
 import { editableToWritePayload } from '@/lib/db/mappers';
 import * as AdminProductsRepo from '@/lib/repositories/admin-products';
+
+/**
+ * Apply forgiving defaults so common omissions don't hard-fail validation:
+ * - If `seo.slug` is empty, derive from `name`.
+ * - For each variant with an empty `sku`, generate `{NAME}-{SIZE}-{COLOR}-{N}`.
+ *
+ * This runs BEFORE validation. Operators can still set explicit values
+ * for either field; we only fill blanks.
+ */
+function withAutoFields(p: EditableProduct): EditableProduct {
+  const slug = p.seo.slug?.trim() ? p.seo.slug : slugify(p.name);
+  const variants = p.variants.map((v, i) => {
+    if (v.sku?.trim()) return v;
+    return { ...v, sku: generateSku(p.name, v.size, v.color, i) };
+  });
+  return { ...p, seo: { ...p.seo, slug }, variants };
+}
 
 export type ActionResult<T = { id: string }> =
   | { ok: true; data: T; mode: 'live' | 'placeholder' }
@@ -37,14 +58,21 @@ function revalidateAfterWrite(productId?: string) {
 export async function saveProductAction(
   product: EditableProduct,
 ): Promise<ActionResult> {
-  const validation = validateEditableProduct(product);
+  const filled = withAutoFields(product);
+  const validation = validateEditableProduct(filled);
   if (!validation.success) {
     return { ok: false, errors: validation.errors, message: 'Validation failed' };
   }
 
   const payload = editableToWritePayload(validation.data);
 
-  const isNew = product.id.startsWith('u_') || product.id === '';
+  // The id is either a real Postgres UUID (existing product) or a transient
+  // client-side uid from `makeUid()` like `p_mpg8r..._7` (unsaved). Treat
+  // anything that doesn't match the UUID shape as a new insert.
+  const isUuid = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(
+    product.id,
+  );
+  const isNew = !isUuid;
   const res = isNew
     ? await AdminProductsRepo.createAdminProduct(payload)
     : await AdminProductsRepo.updateAdminProduct(product.id, payload);

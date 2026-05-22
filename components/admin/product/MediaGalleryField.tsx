@@ -5,6 +5,8 @@ import { useCallback, useRef, useState } from 'react';
 import { ImagePlus, Star, Trash2, Move, Loader2 } from 'lucide-react';
 import { AdminInput } from '@/components/admin/form';
 import { makeEmptyMedia, type EditableMedia } from '@/lib/admin/product-editor';
+import { errorFor, firstErrorWithPrefix } from '@/lib/admin/field-errors';
+import type { FieldError } from '@/lib/validation/product';
 import {
   uploadProductMedia,
   deleteProductMedia,
@@ -20,6 +22,8 @@ interface MediaGalleryFieldProps {
   onChange: (next: EditableMedia[]) => void;
   /** Product id used to scope storage paths. May be a temporary uid for unsaved products. */
   productId: string;
+  /** Server-side validation errors from the last failed save attempt. */
+  errors?: FieldError[] | null;
 }
 
 const ACCEPT_ATTR = ACCEPTED_IMAGE_TYPES.join(',');
@@ -33,16 +37,25 @@ const ACCEPT_ATTR = ACCEPTED_IMAGE_TYPES.join(',');
  * - Drag a tile by its handle to reorder; first tile is the cover unless an
  *   explicit cover is set
  * - Removing a tile also fires a best-effort delete of the storage object
+ * - Server-side validation errors are surfaced inline (group-level above the
+ *   gallery and per-tile under the alt-text input)
  */
-export function MediaGalleryField({ media, onChange, productId }: MediaGalleryFieldProps) {
+export function MediaGalleryField({
+  media,
+  onChange,
+  productId,
+  errors,
+}: MediaGalleryFieldProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [overIndex, setOverIndex] = useState<number | null>(null);
-  const [errors, setErrors] = useState<UploadFailure[]>([]);
+  const [uploadErrors, setUploadErrors] = useState<UploadFailure[]>([]);
 
   const configured = isSupabaseConfigured();
+  const groupError = firstErrorWithPrefix(errors, 'media');
+  const altErrorFor = (i: number) => errorFor(errors, `media.${i}.alt`);
 
   const update = (uid: string, patch: Partial<EditableMedia>) => {
     onChange(media.map((m) => (m.uid === uid ? { ...m, ...patch } : m)));
@@ -70,7 +83,7 @@ export function MediaGalleryField({ media, onChange, productId }: MediaGalleryFi
       if (!list.length) return;
 
       if (!configured) {
-        setErrors([
+        setUploadErrors([
           {
             fileName: list[0].name,
             reason:
@@ -80,7 +93,7 @@ export function MediaGalleryField({ media, onChange, productId }: MediaGalleryFi
         return;
       }
 
-      setErrors([]);
+      setUploadErrors([]);
       setUploading(true);
 
       const results: { media: EditableMedia | null; failure: UploadFailure | null }[] =
@@ -121,7 +134,7 @@ export function MediaGalleryField({ media, onChange, productId }: MediaGalleryFi
         }
         onChange(merged);
       }
-      if (failures.length) setErrors(failures);
+      if (failures.length) setUploadErrors(failures);
       setUploading(false);
     },
     [media, onChange, productId, configured],
@@ -183,6 +196,12 @@ export function MediaGalleryField({ media, onChange, productId }: MediaGalleryFi
 
   return (
     <div className="flex flex-col gap-4">
+      {groupError && media.length > 0 && (
+        <p role="alert" className="text-caption text-accent-crimson">
+          {groupError}
+        </p>
+      )}
+
       {/* Upload dropzone */}
       <div
         onDrop={onDrop}
@@ -234,12 +253,12 @@ export function MediaGalleryField({ media, onChange, productId }: MediaGalleryFi
         </button>
       </div>
 
-      {errors.length > 0 && (
+      {uploadErrors.length > 0 && (
         <ul
           role="alert"
           className="flex flex-col gap-1 border border-state-danger/40 bg-state-danger/5 px-4 py-3 text-caption text-state-danger"
         >
-          {errors.map((err, i) => (
+          {uploadErrors.map((err, i) => (
             <li key={`${err.fileName}-${i}`}>
               <span className="font-medium">{err.fileName}:</span> {err.reason}
             </li>
@@ -263,81 +282,91 @@ export function MediaGalleryField({ media, onChange, productId }: MediaGalleryFi
         className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3"
         role="list"
       >
-        {media.map((m, index) => (
-          <li
-            key={m.uid}
-            draggable
-            onDragStart={onTileDragStart(index)}
-            onDragOver={onTileDragOver(index)}
-            onDrop={onTileDrop(index)}
-            onDragEnd={onTileDragEnd}
-            className={cn(
-              'group relative flex flex-col gap-3 border bg-bg-canvas p-3 transition-colors duration-fast ease-standard',
-              m.isCover
-                ? 'border-accent-ember ring-1 ring-accent-ember/40'
-                : 'border-border-hairline',
-              overIndex === index && dragIndex !== index && 'border-accent-ember',
-              dragIndex === index && 'opacity-60',
-            )}
-          >
-            <div className="relative aspect-[4/5] overflow-hidden bg-bg-muted">
-              {m.url ? (
-                <Image
-                  src={m.url}
-                  alt={m.alt || 'Product image'}
-                  fill
-                  sizes="(min-width: 1280px) 240px, (min-width: 640px) 45vw, 90vw"
-                  className="object-cover"
-                  unoptimized
-                />
-              ) : (
-                <div className="flex h-full items-center justify-center text-caption text-text-muted">
-                  No image
-                </div>
+        {media.map((m, index) => {
+          const altErr = altErrorFor(index);
+          return (
+            <li
+              key={m.uid}
+              draggable
+              onDragStart={onTileDragStart(index)}
+              onDragOver={onTileDragOver(index)}
+              onDrop={onTileDrop(index)}
+              onDragEnd={onTileDragEnd}
+              className={cn(
+                'group relative flex flex-col gap-3 border bg-bg-canvas p-3 transition-colors duration-fast ease-standard',
+                m.isCover
+                  ? 'border-accent-ember ring-1 ring-accent-ember/40'
+                  : altErr
+                    ? 'border-accent-crimson/40'
+                    : 'border-border-hairline',
+                overIndex === index && dragIndex !== index && 'border-accent-ember',
+                dragIndex === index && 'opacity-60',
               )}
-              {m.isCover && (
-                <span className="absolute left-2 top-2 inline-flex items-center gap-1 bg-bg-canvas/90 px-2 py-1 text-[10px] font-medium uppercase tracking-[0.14em] text-accent-ember">
-                  <Star className="h-3 w-3 fill-accent-ember" strokeWidth={1.5} />
-                  Cover
-                </span>
-              )}
-              <div className="absolute right-2 top-2 flex items-center gap-1 opacity-0 transition-opacity duration-fast ease-standard group-hover:opacity-100 focus-within:opacity-100">
-                <IconButton
-                  label="Drag to reorder"
-                  // The drag handle is the whole tile; this icon just signals affordance
-                  onClick={() => {
-                    /* visual only */
-                  }}
-                  title="Drag the tile to reorder"
-                >
-                  <Move className="h-3.5 w-3.5" strokeWidth={1.5} />
-                </IconButton>
-                {!m.isCover && (
-                  <IconButton
-                    label="Set as cover"
-                    onClick={() => setCover(m.uid)}
-                  >
-                    <Star className="h-3.5 w-3.5" strokeWidth={1.5} />
-                  </IconButton>
+            >
+              <div className="relative aspect-[4/5] overflow-hidden bg-bg-muted">
+                {m.url ? (
+                  <Image
+                    src={m.url}
+                    alt={m.alt || 'Product image'}
+                    fill
+                    sizes="(min-width: 1280px) 240px, (min-width: 640px) 45vw, 90vw"
+                    className="object-cover"
+                    unoptimized
+                  />
+                ) : (
+                  <div className="flex h-full items-center justify-center text-caption text-text-muted">
+                    No image
+                  </div>
                 )}
-                <IconButton label="Remove" danger onClick={() => remove(m.uid)}>
-                  <Trash2 className="h-3.5 w-3.5" strokeWidth={1.5} />
-                </IconButton>
+                {m.isCover && (
+                  <span className="absolute left-2 top-2 inline-flex items-center gap-1 bg-bg-canvas/90 px-2 py-1 text-[10px] font-medium uppercase tracking-[0.14em] text-accent-ember">
+                    <Star className="h-3 w-3 fill-accent-ember" strokeWidth={1.5} />
+                    Cover
+                  </span>
+                )}
+                <div className="absolute right-2 top-2 flex items-center gap-1 opacity-0 transition-opacity duration-fast ease-standard group-hover:opacity-100 focus-within:opacity-100">
+                  <IconButton
+                    label="Drag to reorder"
+                    onClick={() => {
+                      /* visual only — drag handle is the whole tile */
+                    }}
+                    title="Drag the tile to reorder"
+                  >
+                    <Move className="h-3.5 w-3.5" strokeWidth={1.5} />
+                  </IconButton>
+                  {!m.isCover && (
+                    <IconButton
+                      label="Set as cover"
+                      onClick={() => setCover(m.uid)}
+                    >
+                      <Star className="h-3.5 w-3.5" strokeWidth={1.5} />
+                    </IconButton>
+                  )}
+                  <IconButton label="Remove" danger onClick={() => remove(m.uid)}>
+                    <Trash2 className="h-3.5 w-3.5" strokeWidth={1.5} />
+                  </IconButton>
+                </div>
               </div>
-            </div>
-            <label className="flex flex-col gap-1">
-              <span className="text-[10px] font-medium uppercase tracking-[0.14em] text-text-muted">
-                Alt text
-              </span>
-              <AdminInput
-                value={m.alt}
-                onChange={(e) => update(m.uid, { alt: e.target.value })}
-                placeholder="Describe the image for accessibility"
-                aria-label="Alt text"
-              />
-            </label>
-          </li>
-        ))}
+              <label className="flex flex-col gap-1">
+                <span className="text-[10px] font-medium uppercase tracking-[0.14em] text-text-muted">
+                  Alt text
+                </span>
+                <AdminInput
+                  value={m.alt}
+                  onChange={(e) => update(m.uid, { alt: e.target.value })}
+                  placeholder="Describe the image for accessibility"
+                  aria-label="Alt text"
+                  invalid={!!altErr}
+                />
+                {altErr ? (
+                  <span className="text-caption text-accent-crimson">
+                    {altErr}
+                  </span>
+                ) : null}
+              </label>
+            </li>
+          );
+        })}
       </ul>
     </div>
   );
