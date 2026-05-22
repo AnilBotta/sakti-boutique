@@ -17,9 +17,16 @@ import { getAdminSupabase, getServerSupabase } from '@/lib/supabase/server';
 
 /** Stable slot keys consumed by storefront components. Extend as new slots are added. */
 export const SITE_IMAGE_SLOTS = [
+  // Homepage "Three collections, one atelier" tiles
   'audience_women',
   'audience_men',
   'audience_kids',
+  // Homepage "Featured silhouettes" rail (under Women)
+  'women_featured_kurthis',
+  'women_featured_salwar_suit',
+  'women_featured_sarees',
+  'women_featured_lehenga',
+  'women_featured_readymade_blouse',
 ] as const;
 export type SiteImageSlot = (typeof SITE_IMAGE_SLOTS)[number];
 
