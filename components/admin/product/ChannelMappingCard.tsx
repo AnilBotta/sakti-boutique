@@ -7,10 +7,13 @@ import {
 } from '@/components/admin/form';
 import { AdminStatusBadge } from '@/components/admin/AdminStatusBadge';
 import type { EditableProduct } from '@/lib/admin/product-editor';
+import { errorFor } from '@/lib/admin/field-errors';
+import type { FieldError } from '@/lib/validation/product';
 
 interface ChannelMappingCardProps {
   product: EditableProduct;
   onChange: (patch: Partial<EditableProduct>) => void;
+  errors?: FieldError[] | null;
 }
 
 /**
@@ -20,7 +23,9 @@ interface ChannelMappingCardProps {
 export function ChannelMappingCard({
   product,
   onChange,
+  errors,
 }: ChannelMappingCardProps) {
+  const skuError = errorFor(errors, 'channel.amazonSku');
   const setChannel = (patch: Partial<EditableProduct['channel']>) =>
     onChange({ channel: { ...product.channel, ...patch } });
 
@@ -40,13 +45,19 @@ export function ChannelMappingCard({
             <AdminFieldRow
               label="Amazon SKU"
               htmlFor="amazon-sku"
-              helper="Sync identifier on the Amazon seller account."
+              error={skuError}
+              helper={
+                skuError
+                  ? undefined
+                  : 'Sync identifier on the Amazon seller account.'
+              }
             >
               <AdminInput
                 id="amazon-sku"
                 value={product.channel.amazonSku}
                 onChange={(e) => setChannel({ amazonSku: e.target.value })}
                 placeholder="AMZ-SKU-0001"
+                invalid={!!skuError}
               />
             </AdminFieldRow>
             <AdminFieldRow

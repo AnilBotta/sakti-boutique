@@ -4,11 +4,14 @@ import Image from 'next/image';
 import { ImagePlus, Star, Trash2, Move } from 'lucide-react';
 import { AdminInput } from '@/components/admin/form';
 import { makeEmptyMedia, type EditableMedia } from '@/lib/admin/product-editor';
+import { errorFor, firstErrorWithPrefix } from '@/lib/admin/field-errors';
+import type { FieldError } from '@/lib/validation/product';
 import { cn } from '@/lib/utils/cn';
 
 interface MediaGalleryFieldProps {
   media: EditableMedia[];
   onChange: (next: EditableMedia[]) => void;
+  errors?: FieldError[] | null;
 }
 
 /**
@@ -22,7 +25,13 @@ interface MediaGalleryFieldProps {
  * Clicking "Add placeholder" appends a demo tile so operators can preview
  * how the gallery feels once uploads are wired.
  */
-export function MediaGalleryField({ media, onChange }: MediaGalleryFieldProps) {
+export function MediaGalleryField({
+  media,
+  onChange,
+  errors,
+}: MediaGalleryFieldProps) {
+  const groupError = firstErrorWithPrefix(errors, 'media');
+  const altErrorFor = (i: number) => errorFor(errors, `media.${i}.alt`);
   const update = (uid: string, patch: Partial<EditableMedia>) => {
     onChange(media.map((m) => (m.uid === uid ? { ...m, ...patch } : m)));
   };
@@ -51,6 +60,11 @@ export function MediaGalleryField({ media, onChange }: MediaGalleryFieldProps) {
 
   return (
     <div className="flex flex-col gap-4">
+      {groupError && media.length > 0 && (
+        <p role="alert" className="text-caption text-accent-crimson">
+          {groupError}
+        </p>
+      )}
       {/* Upload dropzone (shell) */}
       <button
         type="button"
@@ -90,14 +104,18 @@ export function MediaGalleryField({ media, onChange }: MediaGalleryFieldProps) {
         className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3"
         role="list"
       >
-        {media.map((m) => (
+        {media.map((m, i) => {
+          const altErr = altErrorFor(i);
+          return (
           <li
             key={m.uid}
             className={cn(
               'group relative flex flex-col gap-3 border bg-bg-canvas p-3',
               m.isCover
                 ? 'border-accent-ember ring-1 ring-accent-ember/40'
-                : 'border-border-hairline',
+                : altErr
+                  ? 'border-accent-crimson/40'
+                  : 'border-border-hairline',
             )}
           >
             <div className="relative aspect-[4/5] overflow-hidden bg-bg-muted">
@@ -151,10 +169,17 @@ export function MediaGalleryField({ media, onChange }: MediaGalleryFieldProps) {
                 onChange={(e) => update(m.uid, { alt: e.target.value })}
                 placeholder="Describe the image for accessibility"
                 aria-label="Alt text"
+                invalid={!!altErr}
               />
+              {altErr ? (
+                <span className="text-caption text-accent-crimson">
+                  {altErr}
+                </span>
+              ) : null}
             </label>
           </li>
-        ))}
+          );
+        })}
       </ul>
     </div>
   );

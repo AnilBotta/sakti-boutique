@@ -92,6 +92,51 @@ export function makeUid(prefix = 'u'): string {
   return `${prefix}_${Date.now().toString(36)}_${_uidSeq}`;
 }
 
+/**
+ * Convert any human input into a URL-safe slug. Matches the validator regex
+ * `/^[a-z0-9]+(?:-[a-z0-9]+)*$/` so the output, if non-empty, is always valid.
+ *
+ * - lowercases
+ * - strips accents/diacritics
+ * - replaces non-alphanumerics with hyphens
+ * - collapses repeated hyphens
+ * - trims leading/trailing hyphens
+ * - caps at 64 characters
+ */
+export function slugify(input: string): string {
+  if (!input) return '';
+  return input
+    .normalize('NFKD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 64)
+    .replace(/-$/g, '');
+}
+
+/**
+ * Generate a stable, human-readable SKU when the operator hasn't entered one.
+ * Format: `{NAMESTUB}-{SIZE|OS}-{COLORSTUB|STD}-{INDEX}` (e.g. `PURE-ELEGANC-S-RED-1`).
+ * Falls back to `SKU-{INDEX}` when the product name is empty.
+ */
+export function generateSku(
+  productName: string,
+  size: string,
+  color: string,
+  index: number,
+): string {
+  const idx = String(index + 1).padStart(2, '0');
+  const nameStub = slugify(productName).replace(/-/g, '').slice(0, 8).toUpperCase();
+  if (!nameStub) return `SKU-${idx}`;
+  const sizeStub = (size || 'OS').toUpperCase().replace(/\s+/g, '').slice(0, 4);
+  const colorStub = color
+    ? color.toUpperCase().replace(/[^A-Z0-9]+/g, '').slice(0, 3) || 'STD'
+    : 'STD';
+  return `${nameStub}-${sizeStub}-${colorStub}-${idx}`;
+}
+
 export function makeEmptyVariant(overrides: Partial<EditableVariant> = {}): EditableVariant {
   return {
     uid: makeUid('v'),

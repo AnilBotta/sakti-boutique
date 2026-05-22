@@ -3,7 +3,9 @@
 import { useState, useCallback, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { AdminFormSection } from '@/components/admin/form';
-import type { EditableProduct } from '@/lib/admin/product-editor';
+import { slugify, type EditableProduct } from '@/lib/admin/product-editor';
+import { summarizeErrorSections } from '@/lib/admin/field-errors';
+import type { FieldError } from '@/lib/validation/product';
 import {
   saveProductAction,
   deleteProductAction,
@@ -40,26 +42,68 @@ export function ProductEditor({ initial, mode }: ProductEditorProps) {
   const [savingState, setSavingState] = useState<'idle' | 'saving' | 'saved'>(
     'idle',
   );
-  const [saveError, setSaveError] = useState<string | null>(null);
+  // Field-level errors from the last failed save attempt. Surfaced inline
+  // next to each input and summarized in the top-of-form banner.
+  const [fieldErrors, setFieldErrors] = useState<FieldError[] | null>(null);
+  const [topMessage, setTopMessage] = useState<string | null>(null);
+  // When true, edits to the product name also live-update the SEO slug.
+  // Flips false the moment the operator manually edits the slug. New products
+  // start with auto-sync ON; existing products keep their canonical slug.
+  const [slugAutoSynced, setSlugAutoSynced] = useState<boolean>(
+    mode === 'create' && !initial.seo.slug,
+  );
   const [, startTransition] = useTransition();
 
   const dirty = JSON.stringify(product) !== JSON.stringify(savedSnapshot);
 
-  const patch = useCallback((p: Partial<EditableProduct>) => {
-    setProduct((prev) => ({ ...prev, ...p }));
-  }, []);
+  const patch = useCallback(
+    (p: Partial<EditableProduct>) => {
+      setProduct((prev) => {
+        const next = { ...prev, ...p };
+        // Live-derive the slug from the name while auto-sync is enabled.
+        if (slugAutoSynced && p.name !== undefined && p.name !== prev.name) {
+          next.seo = { ...next.seo, slug: slugify(p.name) };
+        }
+        return next;
+      });
+    },
+    [slugAutoSynced],
+  );
+
+  // Dedicated SEO patch helper — detects manual slug edits and flips off the
+  // auto-sync flag so future name edits don't overwrite the operator's choice.
+  const patchSeo = useCallback(
+    (seoPatch: Partial<EditableProduct['seo']>) => {
+      setProduct((prev) => {
+        const userEditedSlug =
+          seoPatch.slug !== undefined && seoPatch.slug !== prev.seo.slug;
+        if (userEditedSlug && slugAutoSynced) {
+          setSlugAutoSynced(false);
+        }
+        return { ...prev, seo: { ...prev.seo, ...seoPatch } };
+      });
+    },
+    [slugAutoSynced],
+  );
 
   const handleSave = () => {
     setSavingState('saving');
-    setSaveError(null);
+    setFieldErrors(null);
+    setTopMessage(null);
     startTransition(async () => {
       const res = await saveProductAction(product);
       if (!res.ok) {
-        const msg =
-          res.message ||
-          res.errors?.map((e) => `${e.path}: ${e.message}`).join(', ') ||
-          'Save failed';
-        setSaveError(msg);
+        const failed = res.errors ?? [];
+        setFieldErrors(failed);
+        const sections = summarizeErrorSections(failed);
+        // `root` errors are non-field issues (e.g. DB write failures); show
+        // their message verbatim so operators see what actually went wrong.
+        const rootError = failed.find((e) => e.path === 'root')?.message;
+        setTopMessage(
+          sections.length
+            ? `Fix the highlighted fields: ${sections.join(', ')}`
+            : rootError || res.message || 'Save failed',
+        );
         setSavingState('idle');
         return;
       }
@@ -69,6 +113,8 @@ export function ProductEditor({ initial, mode }: ProductEditorProps) {
       setSavedSnapshot(saved);
       setProduct(saved);
       setSavingState('saved');
+      setFieldErrors(null);
+      setTopMessage(null);
       if (mode === 'create' && savedId && savedId !== product.id) {
         router.replace(`/admin/products/${savedId}`);
       } else {
@@ -79,7 +125,8 @@ export function ProductEditor({ initial, mode }: ProductEditorProps) {
   };
   const handleDiscard = () => {
     setProduct(savedSnapshot);
-    setSaveError(null);
+    setFieldErrors(null);
+    setTopMessage(null);
   };
   const handleDelete = () => {
     if (mode !== 'edit') return;
@@ -87,8 +134,7 @@ export function ProductEditor({ initial, mode }: ProductEditorProps) {
     startTransition(async () => {
       const res = await deleteProductAction(product.id);
       if (!res.ok) {
-        const msg = res.message || 'Delete failed';
-        setSaveError(msg);
+        setTopMessage(res.message || 'Delete failed');
         return;
       }
       router.replace('/admin/products');
@@ -108,12 +154,12 @@ export function ProductEditor({ initial, mode }: ProductEditorProps) {
         savingState={savingState}
       />
 
-      {saveError ? (
+      {topMessage ? (
         <div
           role="alert"
           className="mt-4 rounded-md border border-state-danger/30 bg-state-danger/5 px-4 py-3 text-caption text-state-danger"
         >
-          {saveError}
+          {topMessage}
         </div>
       ) : null}
 
@@ -124,7 +170,11 @@ export function ProductEditor({ initial, mode }: ProductEditorProps) {
           title="Tell the story of this product"
           description="Operator-facing name, editorial description, and material details. This content flows straight into the PDP."
         >
-          <BasicInfoCard product={product} onChange={patch} />
+          <BasicInfoCard
+            product={product}
+            onChange={patch}
+            errors={fieldErrors}
+          />
         </AdminFormSection>
 
         <AdminFormSection
@@ -133,7 +183,11 @@ export function ProductEditor({ initial, mode }: ProductEditorProps) {
           title="Price and compare-at"
           description="Set the default price shown on the catalog. Variant-level overrides are handled in the Variants section."
         >
-          <PricingCard product={product} onChange={patch} />
+          <PricingCard
+            product={product}
+            onChange={patch}
+            errors={fieldErrors}
+          />
         </AdminFormSection>
 
         <AdminFormSection
@@ -163,6 +217,7 @@ export function ProductEditor({ initial, mode }: ProductEditorProps) {
           <VariantMatrix
             variants={product.variants}
             onChange={(next) => patch({ variants: next })}
+            errors={fieldErrors}
           />
         </AdminFormSection>
 
@@ -170,11 +225,12 @@ export function ProductEditor({ initial, mode }: ProductEditorProps) {
           step="06"
           eyebrow="Media"
           title="Gallery and cover image"
-          description="The cover image appears first on category grids and PDP. Upload workflows activate once Supabase Storage is wired."
+          description="The cover image appears first on category grids and PDP. Drag tiles to reorder, click the star to change the cover."
         >
           <MediaGalleryField
             media={product.media}
             onChange={(next) => patch({ media: next })}
+            errors={fieldErrors}
           />
         </AdminFormSection>
 
@@ -184,7 +240,13 @@ export function ProductEditor({ initial, mode }: ProductEditorProps) {
           title="Search visibility"
           description="Slug, meta title, and description. Previewed as a Google-style snippet below."
         >
-          <SeoFieldsCard product={product} onChange={patch} />
+          <SeoFieldsCard
+            product={product}
+            onChange={patch}
+            onSeoChange={patchSeo}
+            slugAutoSynced={slugAutoSynced}
+            errors={fieldErrors}
+          />
         </AdminFormSection>
 
         <AdminFormSection
@@ -202,7 +264,11 @@ export function ProductEditor({ initial, mode }: ProductEditorProps) {
           title="Amazon channel mapping"
           description="The Sakthi storefront is the primary brand experience. Amazon is a secondary channel."
         >
-          <ChannelMappingCard product={product} onChange={patch} />
+          <ChannelMappingCard
+            product={product}
+            onChange={patch}
+            errors={fieldErrors}
+          />
         </AdminFormSection>
 
         <AdminFormSection

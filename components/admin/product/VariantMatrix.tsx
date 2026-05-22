@@ -6,11 +6,33 @@ import {
   makeEmptyVariant,
   type EditableVariant,
 } from '@/lib/admin/product-editor';
+import { errorFor } from '@/lib/admin/field-errors';
+import type { FieldError } from '@/lib/validation/product';
 import { cn } from '@/lib/utils/cn';
 
 interface VariantMatrixProps {
   variants: EditableVariant[];
   onChange: (next: EditableVariant[]) => void;
+  errors?: FieldError[] | null;
+}
+
+type VErrors = {
+  sku?: string;
+  stock?: string;
+  price?: string;
+  salePrice?: string;
+};
+
+function variantErrors(
+  errors: FieldError[] | null | undefined,
+  index: number,
+): VErrors {
+  return {
+    sku: errorFor(errors, `variants.${index}.sku`),
+    stock: errorFor(errors, `variants.${index}.stock`),
+    price: errorFor(errors, `variants.${index}.price`),
+    salePrice: errorFor(errors, `variants.${index}.salePrice`),
+  };
 }
 
 /**
@@ -21,7 +43,7 @@ interface VariantMatrixProps {
  *
  * No persistence — state lives in the parent editor's reducer.
  */
-export function VariantMatrix({ variants, onChange }: VariantMatrixProps) {
+export function VariantMatrix({ variants, onChange, errors }: VariantMatrixProps) {
   const update = (uid: string, patch: Partial<EditableVariant>) => {
     onChange(variants.map((v) => (v.uid === uid ? { ...v, ...patch } : v)));
   };
@@ -33,6 +55,7 @@ export function VariantMatrix({ variants, onChange }: VariantMatrixProps) {
   };
 
   const totalStock = variants.reduce((sum, v) => sum + (Number(v.stock) || 0), 0);
+  const groupError = errorFor(errors, 'variants');
 
   return (
     <div className="flex flex-col gap-4">
@@ -63,6 +86,12 @@ export function VariantMatrix({ variants, onChange }: VariantMatrixProps) {
         </button>
       </div>
 
+      {groupError && (
+        <p role="alert" className="text-caption text-accent-crimson">
+          {groupError}
+        </p>
+      )}
+
       {variants.length === 0 ? (
         <div className="border border-dashed border-border-default px-6 py-10 text-center">
           <p className="text-body text-text-secondary">No variants yet.</p>
@@ -89,181 +118,213 @@ export function VariantMatrix({ variants, onChange }: VariantMatrixProps) {
                 </tr>
               </thead>
               <tbody>
-                {variants.map((v) => (
-                  <tr
-                    key={v.uid}
-                    className="border-b border-border-hairline last:border-b-0"
-                  >
-                    <td className="p-2 align-middle">
-                      <AdminInput
-                        value={v.size}
-                        onChange={(e) => update(v.uid, { size: e.target.value })}
-                        placeholder="M"
-                        aria-label="Size"
-                      />
-                    </td>
-                    <td className="p-2 align-middle">
-                      <AdminInput
-                        value={v.color}
-                        onChange={(e) => update(v.uid, { color: e.target.value })}
-                        placeholder="Ivory"
-                        aria-label="Color"
-                      />
-                    </td>
-                    <td className="p-2 align-middle">
-                      <AdminInput
-                        value={v.sku}
-                        onChange={(e) => update(v.uid, { sku: e.target.value })}
-                        placeholder="SKU-0001"
-                        aria-label="SKU"
-                      />
-                    </td>
-                    <td className="p-2 align-middle w-[110px]">
-                      <AdminInput
-                        type="number"
-                        min={0}
-                        value={v.stock}
-                        onChange={(e) =>
-                          update(v.uid, { stock: Number(e.target.value) || 0 })
-                        }
-                        aria-label="Stock"
-                      />
-                    </td>
-                    <td className="p-2 align-middle w-[130px]">
-                      <AdminInput
-                        type="number"
-                        min={0}
-                        step="0.01"
-                        prefix="$"
-                        value={v.price}
-                        onChange={(e) =>
-                          update(v.uid, { price: Number(e.target.value) || 0 })
-                        }
-                        aria-label="Price"
-                      />
-                    </td>
-                    <td className="p-2 align-middle w-[130px]">
-                      <AdminInput
-                        type="number"
-                        min={0}
-                        step="0.01"
-                        prefix="$"
-                        value={v.salePrice ?? ''}
-                        onChange={(e) =>
-                          update(v.uid, {
-                            salePrice:
-                              e.target.value === ''
-                                ? null
-                                : Number(e.target.value) || 0,
-                          })
-                        }
-                        aria-label="Sale price"
-                        placeholder="—"
-                      />
-                    </td>
-                    <td className="p-2 align-middle w-[52px] text-right">
-                      <button
-                        type="button"
-                        onClick={() => remove(v.uid)}
-                        aria-label={`Remove variant ${v.size || ''} ${v.color || ''}`.trim()}
-                        className="inline-flex h-9 w-9 items-center justify-center text-text-muted transition-colors duration-fast ease-standard hover:text-accent-crimson"
-                      >
-                        <Trash2 className="h-4 w-4" strokeWidth={1.5} />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {variants.map((v, i) => {
+                  const e = variantErrors(errors, i);
+                  const rowHasError =
+                    !!(e.sku || e.stock || e.price || e.salePrice);
+                  return (
+                    <tr
+                      key={v.uid}
+                      className={cn(
+                        'border-b border-border-hairline last:border-b-0',
+                        rowHasError && 'bg-state-danger/[0.03]',
+                      )}
+                    >
+                      <td className="p-2 align-middle">
+                        <AdminInput
+                          value={v.size}
+                          onChange={(ev) => update(v.uid, { size: ev.target.value })}
+                          placeholder="M"
+                          aria-label="Size"
+                        />
+                      </td>
+                      <td className="p-2 align-middle">
+                        <AdminInput
+                          value={v.color}
+                          onChange={(ev) => update(v.uid, { color: ev.target.value })}
+                          placeholder="Ivory"
+                          aria-label="Color"
+                        />
+                      </td>
+                      <td className="p-2 align-middle">
+                        <AdminInput
+                          value={v.sku}
+                          onChange={(ev) => update(v.uid, { sku: ev.target.value })}
+                          placeholder="Auto-generated on save"
+                          aria-label="SKU"
+                          invalid={!!e.sku}
+                        />
+                        {e.sku && (
+                          <p className="mt-1 text-caption text-accent-crimson">
+                            {e.sku}
+                          </p>
+                        )}
+                      </td>
+                      <td className="p-2 align-middle w-[110px]">
+                        <AdminInput
+                          type="number"
+                          min={0}
+                          value={v.stock}
+                          onChange={(ev) =>
+                            update(v.uid, { stock: Number(ev.target.value) || 0 })
+                          }
+                          aria-label="Stock"
+                          invalid={!!e.stock}
+                        />
+                      </td>
+                      <td className="p-2 align-middle w-[130px]">
+                        <AdminInput
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          prefix="$"
+                          value={v.price}
+                          onChange={(ev) =>
+                            update(v.uid, { price: Number(ev.target.value) || 0 })
+                          }
+                          aria-label="Price"
+                          invalid={!!e.price}
+                        />
+                      </td>
+                      <td className="p-2 align-middle w-[130px]">
+                        <AdminInput
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          prefix="$"
+                          value={v.salePrice ?? ''}
+                          onChange={(ev) =>
+                            update(v.uid, {
+                              salePrice:
+                                ev.target.value === ''
+                                  ? null
+                                  : Number(ev.target.value) || 0,
+                            })
+                          }
+                          aria-label="Sale price"
+                          placeholder="—"
+                          invalid={!!e.salePrice}
+                        />
+                      </td>
+                      <td className="p-2 align-middle w-[52px] text-right">
+                        <button
+                          type="button"
+                          onClick={() => remove(v.uid)}
+                          aria-label={`Remove variant ${v.size || ''} ${v.color || ''}`.trim()}
+                          className="inline-flex h-9 w-9 items-center justify-center text-text-muted transition-colors duration-fast ease-standard hover:text-accent-crimson"
+                        >
+                          <Trash2 className="h-4 w-4" strokeWidth={1.5} />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
 
           {/* Mobile / tablet stacked cards */}
           <ul className="lg:hidden flex flex-col gap-3" role="list">
-            {variants.map((v, i) => (
-              <li
-                key={v.uid}
-                className="border border-border-hairline bg-bg-canvas p-4"
-              >
-                <div className="mb-3 flex items-center justify-between">
-                  <span className="text-[11px] font-medium uppercase tracking-[0.14em] text-text-muted">
-                    Variant {String(i + 1).padStart(2, '0')}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => remove(v.uid)}
-                    aria-label="Remove variant"
-                    className="inline-flex h-8 w-8 items-center justify-center text-text-muted hover:text-accent-crimson"
-                  >
-                    <Trash2 className="h-4 w-4" strokeWidth={1.5} />
-                  </button>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <VFieldCell label="Size">
-                    <AdminInput
-                      value={v.size}
-                      onChange={(e) => update(v.uid, { size: e.target.value })}
-                      aria-label="Size"
-                    />
-                  </VFieldCell>
-                  <VFieldCell label="Color">
-                    <AdminInput
-                      value={v.color}
-                      onChange={(e) => update(v.uid, { color: e.target.value })}
-                      aria-label="Color"
-                    />
-                  </VFieldCell>
-                  <VFieldCell label="SKU" span={2}>
-                    <AdminInput
-                      value={v.sku}
-                      onChange={(e) => update(v.uid, { sku: e.target.value })}
-                      aria-label="SKU"
-                    />
-                  </VFieldCell>
-                  <VFieldCell label="Stock">
-                    <AdminInput
-                      type="number"
-                      min={0}
-                      value={v.stock}
-                      onChange={(e) =>
-                        update(v.uid, { stock: Number(e.target.value) || 0 })
-                      }
-                      aria-label="Stock"
-                    />
-                  </VFieldCell>
-                  <VFieldCell label="Price">
-                    <AdminInput
-                      type="number"
-                      min={0}
-                      step="0.01"
-                      prefix="$"
-                      value={v.price}
-                      onChange={(e) =>
-                        update(v.uid, { price: Number(e.target.value) || 0 })
-                      }
-                      aria-label="Price"
-                    />
-                  </VFieldCell>
-                  <VFieldCell label="Sale">
-                    <AdminInput
-                      type="number"
-                      min={0}
-                      step="0.01"
-                      prefix="$"
-                      value={v.salePrice ?? ''}
-                      onChange={(e) =>
-                        update(v.uid, {
-                          salePrice:
-                            e.target.value === ''
-                              ? null
-                              : Number(e.target.value) || 0,
-                        })
-                      }
-                      aria-label="Sale price"
-                    />
-                  </VFieldCell>
-                </div>
-              </li>
-            ))}
+            {variants.map((v, i) => {
+              const e = variantErrors(errors, i);
+              const rowHasError =
+                !!(e.sku || e.stock || e.price || e.salePrice);
+              return (
+                <li
+                  key={v.uid}
+                  className={cn(
+                    'border bg-bg-canvas p-4',
+                    rowHasError
+                      ? 'border-accent-crimson/40'
+                      : 'border-border-hairline',
+                  )}
+                >
+                  <div className="mb-3 flex items-center justify-between">
+                    <span className="text-[11px] font-medium uppercase tracking-[0.14em] text-text-muted">
+                      Variant {String(i + 1).padStart(2, '0')}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => remove(v.uid)}
+                      aria-label="Remove variant"
+                      className="inline-flex h-8 w-8 items-center justify-center text-text-muted hover:text-accent-crimson"
+                    >
+                      <Trash2 className="h-4 w-4" strokeWidth={1.5} />
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <VFieldCell label="Size">
+                      <AdminInput
+                        value={v.size}
+                        onChange={(ev) => update(v.uid, { size: ev.target.value })}
+                        aria-label="Size"
+                      />
+                    </VFieldCell>
+                    <VFieldCell label="Color">
+                      <AdminInput
+                        value={v.color}
+                        onChange={(ev) => update(v.uid, { color: ev.target.value })}
+                        aria-label="Color"
+                      />
+                    </VFieldCell>
+                    <VFieldCell label="SKU" span={2} error={e.sku}>
+                      <AdminInput
+                        value={v.sku}
+                        onChange={(ev) => update(v.uid, { sku: ev.target.value })}
+                        aria-label="SKU"
+                        placeholder="Auto-generated on save"
+                        invalid={!!e.sku}
+                      />
+                    </VFieldCell>
+                    <VFieldCell label="Stock" error={e.stock}>
+                      <AdminInput
+                        type="number"
+                        min={0}
+                        value={v.stock}
+                        onChange={(ev) =>
+                          update(v.uid, { stock: Number(ev.target.value) || 0 })
+                        }
+                        aria-label="Stock"
+                        invalid={!!e.stock}
+                      />
+                    </VFieldCell>
+                    <VFieldCell label="Price" error={e.price}>
+                      <AdminInput
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        prefix="$"
+                        value={v.price}
+                        onChange={(ev) =>
+                          update(v.uid, { price: Number(ev.target.value) || 0 })
+                        }
+                        aria-label="Price"
+                        invalid={!!e.price}
+                      />
+                    </VFieldCell>
+                    <VFieldCell label="Sale" error={e.salePrice}>
+                      <AdminInput
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        prefix="$"
+                        value={v.salePrice ?? ''}
+                        onChange={(ev) =>
+                          update(v.uid, {
+                            salePrice:
+                              ev.target.value === ''
+                                ? null
+                                : Number(ev.target.value) || 0,
+                          })
+                        }
+                        aria-label="Sale price"
+                        invalid={!!e.salePrice}
+                      />
+                    </VFieldCell>
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         </>
       )}
@@ -275,10 +336,12 @@ function VFieldCell({
   label,
   span = 1,
   children,
+  error,
 }: {
   label: string;
   span?: 1 | 2;
   children: React.ReactNode;
+  error?: string;
 }) {
   return (
     <div className={cn('flex flex-col gap-1', span === 2 && 'col-span-2')}>
@@ -286,6 +349,9 @@ function VFieldCell({
         {label}
       </span>
       {children}
+      {error ? (
+        <span className="text-caption text-accent-crimson">{error}</span>
+      ) : null}
     </div>
   );
 }

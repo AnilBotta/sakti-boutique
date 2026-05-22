@@ -2,13 +2,18 @@
 
 import { AdminFieldRow, AdminInput } from '@/components/admin/form';
 import type { EditableProduct } from '@/lib/admin/product-editor';
+import { errorFor } from '@/lib/admin/field-errors';
+import type { FieldError } from '@/lib/validation/product';
 
 interface PricingCardProps {
   product: EditableProduct;
   onChange: (patch: Partial<EditableProduct>) => void;
+  errors?: FieldError[] | null;
 }
 
-export function PricingCard({ product, onChange }: PricingCardProps) {
+export function PricingCard({ product, onChange, errors }: PricingCardProps) {
+  const priceError = errorFor(errors, 'price');
+  const originalPriceError = errorFor(errors, 'originalPrice');
   const discount =
     product.originalPrice && product.originalPrice > product.price
       ? Math.round(
@@ -19,7 +24,7 @@ export function PricingCard({ product, onChange }: PricingCardProps) {
   return (
     <div className="flex flex-col gap-5">
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-        <AdminFieldRow label="Price" htmlFor="price" required>
+        <AdminFieldRow label="Price" htmlFor="price" required error={priceError}>
           <AdminInput
             id="price"
             type="number"
@@ -28,15 +33,19 @@ export function PricingCard({ product, onChange }: PricingCardProps) {
             prefix="$"
             value={product.price}
             onChange={(e) => onChange({ price: Number(e.target.value) || 0 })}
+            invalid={!!priceError}
           />
         </AdminFieldRow>
         <AdminFieldRow
           label="Compare-at price"
           htmlFor="originalPrice"
+          error={originalPriceError}
           helper={
-            discount > 0
-              ? `Displays as strikethrough. ${discount}% off.`
-              : 'Optional. Shows as strikethrough when higher than price.'
+            originalPriceError
+              ? undefined
+              : discount > 0
+                ? `Displays as strikethrough. ${discount}% off.`
+                : 'Optional. Shows as strikethrough when higher than price.'
           }
         >
           <AdminInput
@@ -53,6 +62,7 @@ export function PricingCard({ product, onChange }: PricingCardProps) {
               })
             }
             placeholder="—"
+            invalid={!!originalPriceError}
           />
         </AdminFieldRow>
       </div>
