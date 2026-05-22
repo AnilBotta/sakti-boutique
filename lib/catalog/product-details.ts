@@ -1,10 +1,13 @@
 // PDP enrichment layer.
-// Wraps base Product fixtures with rich content (gallery, descriptions, care,
-// try-on flag, size guide) without touching every entry by hand.
-// When Supabase wires in, swap `enrichProduct` for a real query.
+// Wraps a base Product (sourced from live Supabase) with rich content
+// (gallery, descriptions, care, try-on flag, size guide). The base record
+// itself comes from `lib/repositories/catalog.ts`.
 
 import type { Product } from './products';
-import { products } from './products';
+import {
+  getProductBySlug,
+  listRelatedProducts,
+} from '@/lib/repositories/catalog';
 
 export interface SizeGuideRow {
   size: string;
@@ -126,18 +129,16 @@ export function enrichProduct(p: Product): ProductDetails {
   };
 }
 
-export function getProductDetails(slug: string): ProductDetails | null {
-  const base = products.find((p) => p.slug === slug);
+export async function getProductDetails(
+  slug: string,
+): Promise<ProductDetails | null> {
+  const base = await getProductBySlug(slug);
   return base ? enrichProduct(base) : null;
 }
 
-export function getRelatedProducts(p: Product, limit = 4): Product[] {
-  return products
-    .filter(
-      (other) =>
-        other.id !== p.id &&
-        other.audience === p.audience &&
-        other.category === p.category,
-    )
-    .slice(0, limit);
+export async function getRelatedProducts(
+  p: Product,
+  limit = 4,
+): Promise<Product[]> {
+  return listRelatedProducts(p.slug, limit);
 }

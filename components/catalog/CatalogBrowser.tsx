@@ -103,7 +103,15 @@ export function CatalogBrowser({ products }: CatalogBrowserProps) {
             </div>
 
             {visibleProducts.length === 0 ? (
-              <EmptyState onReset={reset} />
+              products.length === 0 ? (
+                <EmptyState
+                  title="New pieces coming soon"
+                  description="Our atelier is preparing the next collection. Check back shortly — or sign up below to be the first to know."
+                  resetLabel=""
+                />
+              ) : (
+                <EmptyState onReset={reset} />
+              )
             ) : (
               <>
                 <ProductGrid>

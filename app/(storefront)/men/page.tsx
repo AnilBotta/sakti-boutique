@@ -3,7 +3,7 @@ import { CollectionHeader } from '@/components/catalog/CollectionHeader';
 import { SubcategoryRail } from '@/components/catalog/SubcategoryRail';
 import { CatalogBrowser } from '@/components/catalog/CatalogBrowser';
 import { taxonomy } from '@/lib/catalog/taxonomy';
-import { productsByAudience } from '@/lib/catalog/products';
+import { listProducts } from '@/lib/repositories/catalog';
 import { categoryImage } from '@/lib/catalog/category-imagery';
 
 export const metadata: Metadata = {
@@ -12,14 +12,14 @@ export const metadata: Metadata = {
     'Cotton kurthas, festive sets, and considered ethnic essentials cut for the modern silhouette.',
 };
 
-export default function MenLandingPage() {
+export default async function MenLandingPage() {
   const node = taxonomy.men;
   const items = node.categories.map((c) => ({
     label: c.label,
     href: `/men/${c.slug}`,
     image: categoryImage('men', c.slug),
   }));
-  const products = productsByAudience('men');
+  const products = await listProducts({ audience: 'men', limit: 48 });
 
   return (
     <>

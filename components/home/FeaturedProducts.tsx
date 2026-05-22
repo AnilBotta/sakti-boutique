@@ -12,6 +12,11 @@ export async function FeaturedProducts() {
     .slice()
     .sort((a, b) => (a.badge ? -1 : 1) - (b.badge ? -1 : 1))
     .slice(0, 4);
+
+  // No products yet — hide the rail entirely so the homepage doesn't show
+  // an awkward empty grid. The next section (BrandStory) flows naturally.
+  if (featured.length === 0) return null;
+
   return (
     <Section width="editorial">
       <div className="flex items-end justify-between gap-6">
