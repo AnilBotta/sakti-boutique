@@ -96,7 +96,9 @@ export function PageHero({
                 fill
                 priority
                 sizes="(min-width: 1280px) 1280px, 100vw"
-                className="object-cover"
+                // `object-top` keeps the head/face visible on portrait uploads
+                // (the container is 16:7, so center-crop would cut off the top).
+                className="object-cover object-top"
                 unoptimized={imageUnoptimized}
               />
             </motion.div>
