@@ -54,7 +54,10 @@ export function CollectionHeader({
             fill
             priority
             sizes="100vw"
-            className="object-cover"
+            // `object-top` keeps the top of portrait images visible (face/head)
+            // instead of center-cropping. Landscape images are essentially
+            // unchanged because their top half is roughly their middle.
+            className="object-cover object-top"
             unoptimized={bannerUnoptimized}
           />
           <div
