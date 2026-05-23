@@ -8,6 +8,22 @@ import { EditorialBlock } from '@/components/layout/EditorialBlock';
 import { Reveal } from '@/components/motion/Reveal';
 import { AtelierStrip } from '@/components/about/AtelierStrip';
 import { CraftTimeline } from '@/components/about/CraftTimeline';
+import { listSiteImages } from '@/lib/repositories/site-imagery';
+
+const ABOUT_FALLBACKS = {
+  about_hero: {
+    src: 'https://images.unsplash.com/photo-1583391733956-6c78276477e2?auto=format&fit=crop&w=2000&q=85',
+    alt: 'A draped saree in warm natural light, photographed on a muted studio backdrop',
+  },
+  about_craftsmanship: {
+    src: 'https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=1600&q=85',
+    alt: 'Close-up of hand embroidery on silk',
+  },
+  about_service: {
+    src: 'https://images.unsplash.com/photo-1617627143750-d86bc21e42bb?auto=format&fit=crop&w=1600&q=85',
+    alt: 'A styling consultation in warm ambient light',
+  },
+} as const;
 
 export const metadata: Metadata = {
   title: 'Our Story',
@@ -22,7 +38,32 @@ export const metadata: Metadata = {
   },
 };
 
-export default function AboutPage() {
+export default async function AboutPage() {
+  const slots = await listSiteImages([
+    'about_hero',
+    'about_craftsmanship',
+    'about_service',
+  ]);
+  const hero = {
+    src: slots.about_hero.url || ABOUT_FALLBACKS.about_hero.src,
+    alt: slots.about_hero.alt || ABOUT_FALLBACKS.about_hero.alt,
+    uploaded: !!slots.about_hero.url,
+  };
+  const craft = {
+    src:
+      slots.about_craftsmanship.url ||
+      ABOUT_FALLBACKS.about_craftsmanship.src,
+    alt:
+      slots.about_craftsmanship.alt ||
+      ABOUT_FALLBACKS.about_craftsmanship.alt,
+    uploaded: !!slots.about_craftsmanship.url,
+  };
+  const service = {
+    src: slots.about_service.url || ABOUT_FALLBACKS.about_service.src,
+    alt: slots.about_service.alt || ABOUT_FALLBACKS.about_service.alt,
+    uploaded: !!slots.about_service.url,
+  };
+
   return (
     <>
       <PageHero
@@ -34,10 +75,8 @@ export default function AboutPage() {
           </>
         }
         lede="Sakthi Trends USA is a small, considered atelier. Every piece we make is a conversation between heritage craft and the way women actually live today — festive, refined, quietly confident."
-        image={{
-          src: 'https://images.unsplash.com/photo-1583391733956-6c78276477e2?auto=format&fit=crop&w=2000&q=85',
-          alt: 'A draped saree in warm natural light, photographed on a muted studio backdrop',
-        }}
+        image={{ src: hero.src, alt: hero.alt }}
+        imageUnoptimized={hero.uploaded}
       />
 
       <RichTextSection
@@ -63,11 +102,12 @@ export default function AboutPage() {
           media={
             <div className="relative aspect-[4/5] w-full overflow-hidden bg-bg-muted">
               <Image
-                src="https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=1600&q=85"
-                alt="Close-up of hand embroidery on silk"
+                src={craft.src}
+                alt={craft.alt}
                 fill
                 sizes="(min-width: 768px) 58vw, 100vw"
                 className="object-cover"
+                unoptimized={craft.uploaded}
               />
             </div>
           }
@@ -131,11 +171,12 @@ export default function AboutPage() {
           media={
             <div className="relative aspect-[4/5] w-full overflow-hidden bg-bg-muted">
               <Image
-                src="https://images.unsplash.com/photo-1617627143750-d86bc21e42bb?auto=format&fit=crop&w=1600&q=85"
-                alt="A styling consultation in warm ambient light"
+                src={service.src}
+                alt={service.alt}
                 fill
                 sizes="(min-width: 768px) 58vw, 100vw"
                 className="object-cover"
+                unoptimized={service.uploaded}
               />
             </div>
           }

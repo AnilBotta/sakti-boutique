@@ -99,6 +99,41 @@ const SLOT_META: Record<SiteImageSlot, SlotMeta> = {
     description:
       'The full-bleed banner at the top of /kids — "Festive Little Ones".',
   },
+  // -- About page imagery -------------------------------------------------
+  about_hero: {
+    label: 'About — page hero',
+    description:
+      'The wide image directly under "Crafted for the modern woman" on /about.',
+  },
+  about_craftsmanship: {
+    label: 'About — Craftsmanship ("The hand is the point")',
+    description:
+      'The portrait image beside the Craftsmanship section on /about.',
+  },
+  about_service: {
+    label: 'About — Service ("A boutique, not a warehouse")',
+    description:
+      'The portrait image beside the Service section on /about.',
+  },
+  about_atelier_fabric: {
+    label: 'About — Atelier strip · Fabric',
+    description:
+      'The "Fabric" frame in "The craft, in four frames" on /about.',
+  },
+  about_atelier_embroidery: {
+    label: 'About — Atelier strip · Embroidery',
+    description:
+      'The "Embroidery" frame in "The craft, in four frames" on /about.',
+  },
+  about_atelier_dye: {
+    label: 'About — Atelier strip · Dye',
+    description: 'The "Dye" frame in "The craft, in four frames" on /about.',
+  },
+  about_atelier_finish: {
+    label: 'About — Atelier strip · Finish',
+    description:
+      'The "Finish" frame in "The craft, in four frames" on /about.',
+  },
   // -- Category banners — Women -------------------------------------------
   category_women_kurthis: {
     label: 'Women → Kurthis banner',
@@ -195,6 +230,20 @@ const SLOT_GROUPS: SlotGroup[] = [
     description:
       'The big full-bleed banner at the top of each /women, /men, /kids landing page.',
     slots: ['landing_hero_women', 'landing_hero_men', 'landing_hero_kids'],
+  },
+  {
+    title: 'About page',
+    description:
+      'The hero, two editorial blocks, and the four-frame Atelier strip on /about.',
+    slots: [
+      'about_hero',
+      'about_craftsmanship',
+      'about_service',
+      'about_atelier_fabric',
+      'about_atelier_embroidery',
+      'about_atelier_dye',
+      'about_atelier_finish',
+    ],
   },
   {
     title: 'Category banners — Women',
