@@ -1,13 +1,10 @@
 /**
  * Customers repository — admin reads.
- * Falls back to mock data when DB is empty so the admin UI keeps a
- * believable look while no orders/customers exist yet.
+ * Returns whatever is in the DB. When the DB is empty (e.g. before any
+ * customer has signed up), returns []; the admin UI renders an empty state.
  */
 
-import {
-  recentCustomers as placeholderCustomers,
-  type CustomerRow,
-} from '@/lib/admin/mock-data';
+import type { CustomerRow } from '@/lib/admin/mock-data';
 import {
   isSupabaseConfigured,
   warnOncePlaceholderMode,
@@ -38,10 +35,10 @@ function toCustomerRow(row: DbCustomerRow): CustomerRow {
 export async function listCustomers(limit = 50): Promise<CustomerRow[]> {
   if (!isSupabaseConfigured()) {
     warnOncePlaceholderMode('customers.list');
-    return placeholderCustomers.slice(0, limit);
+    return [];
   }
   const db = getAdminSupabase() ?? getServerSupabase();
-  if (!db) return placeholderCustomers.slice(0, limit);
+  if (!db) return [];
 
   const { data, error } = await db
     .from('customers')
@@ -50,10 +47,7 @@ export async function listCustomers(limit = 50): Promise<CustomerRow[]> {
     .limit(limit);
   if (error) {
     console.error('[customers.list]', error.message);
-    return placeholderCustomers.slice(0, limit);
-  }
-  if (!data || data.length === 0) {
-    return placeholderCustomers.slice(0, limit);
+    return [];
   }
   return (data as unknown as DbCustomerRow[]).map(toCustomerRow);
 }
