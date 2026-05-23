@@ -84,6 +84,8 @@ export interface PublicReview {
   title: string | null;
   body: string;
   submittedAt: string;
+  /** Customer-uploaded review photos. Empty array when none. */
+  photos: string[];
 }
 
 export interface ProductReviewSummary {
@@ -92,6 +94,65 @@ export interface ProductReviewSummary {
   average: number;
   /** Most recent approved reviews for the product, newest first. */
   reviews: PublicReview[];
+}
+
+/**
+ * Featured review used by the homepage "Loved across the country" block.
+ * Includes the product name so the card can credit "on the {product}".
+ */
+export interface FeaturedReview {
+  id: string;
+  author: string;
+  rating: number;
+  title: string | null;
+  body: string;
+  submittedAt: string;
+  productName: string;
+}
+
+/**
+ * Top approved reviews across every product, prioritized by rating
+ * (5★ first) then recency. Used for the homepage testimonials section.
+ * Returns [] when no reviews are approved yet — caller hides the block.
+ */
+export async function listFeaturedApprovedReviews(
+  limit = 3,
+): Promise<FeaturedReview[]> {
+  if (!isSupabaseConfigured()) {
+    warnOncePlaceholderMode('reviews.featured');
+    return [];
+  }
+  const db = getServerSupabase();
+  if (!db) return [];
+
+  const { data, error } = await db
+    .from('reviews')
+    .select('id, author_name, rating, title, body, submitted_at, product:products(name)')
+    .eq('status', 'approved')
+    .order('rating', { ascending: false })
+    .order('submitted_at', { ascending: false })
+    .limit(limit);
+  if (error) {
+    console.error('[reviews.featured]', error.message);
+    return [];
+  }
+  return ((data ?? []) as unknown as Array<{
+    id: string;
+    author_name: string;
+    rating: number;
+    title: string | null;
+    body: string;
+    submitted_at: string;
+    product: { name: string } | null;
+  }>).map((r) => ({
+    id: r.id,
+    author: r.author_name,
+    rating: r.rating,
+    title: r.title,
+    body: r.body,
+    submittedAt: r.submitted_at,
+    productName: r.product?.name ?? '',
+  }));
 }
 
 /**
@@ -113,7 +174,7 @@ export async function getProductReviews(
 
   const { data, error } = await db
     .from('reviews')
-    .select('id, author_name, rating, title, body, submitted_at')
+    .select('id, author_name, rating, title, body, photos, submitted_at')
     .eq('product_id', productId)
     .eq('status', 'approved')
     .order('submitted_at', { ascending: false })
@@ -128,6 +189,7 @@ export async function getProductReviews(
     rating: number;
     title: string | null;
     body: string;
+    photos: string[] | null;
     submitted_at: string;
   }>;
   if (rows.length === 0) return empty;
@@ -142,6 +204,7 @@ export async function getProductReviews(
       rating: r.rating,
       title: r.title,
       body: r.body,
+      photos: r.photos ?? [],
       submittedAt: r.submitted_at,
     })),
   };

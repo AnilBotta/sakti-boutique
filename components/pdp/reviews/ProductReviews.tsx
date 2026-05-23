@@ -1,3 +1,4 @@
+import Image from 'next/image';
 import { getProductReviews } from '@/lib/repositories/reviews';
 import { Stars } from './Stars';
 import { ReviewForm } from './ReviewForm';
@@ -75,6 +76,33 @@ export async function ProductReviews({
               <p className="mt-2 whitespace-pre-line text-body text-text-secondary">
                 {r.body}
               </p>
+              {r.photos.length > 0 && (
+                <ul className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-5">
+                  {r.photos.map((url, i) => (
+                    <li
+                      key={`${r.id}-${i}`}
+                      className="relative aspect-square overflow-hidden border border-border-hairline bg-bg-muted"
+                    >
+                      <a
+                        href={url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label={`Open photo ${i + 1} from ${r.author} full size`}
+                        className="block h-full w-full"
+                      >
+                        <Image
+                          src={url}
+                          alt={`Customer photo ${i + 1} from ${r.author}`}
+                          fill
+                          sizes="(min-width: 640px) 120px, 30vw"
+                          unoptimized
+                          className="object-cover transition-transform duration-base ease-standard hover:scale-105"
+                        />
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              )}
               <p className="mt-3 text-caption text-text-muted">
                 {formatDate(r.submittedAt)}
               </p>
