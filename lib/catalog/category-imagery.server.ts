@@ -28,6 +28,19 @@ const CATEGORY_SLOTS = new Set<string>([
   'category_kids_salwar_suit',
 ]);
 
+// Women-specific homepage "Featured silhouettes" slots (PR #16). Used as a
+// secondary fallback for the audience-landing rail so a single upload from
+// the operator's perspective populates BOTH the homepage tile and the
+// /women rail. Without this, the operator would have to upload to two
+// different slots to fill the same-looking section in two places.
+const WOMEN_FEATURED_SLOTS = new Set<string>([
+  'women_featured_kurthis',
+  'women_featured_salwar_suit',
+  'women_featured_sarees',
+  'women_featured_lehenga',
+  'women_featured_readymade_blouse',
+]);
+
 /**
  * Build the `site_imagery` slot key for a given category. Hyphens in slugs
  * become underscores so the slot string matches the registered enum.
@@ -41,6 +54,21 @@ function slotForCategory(
   return slot as SiteImageSlot;
 }
 
+/**
+ * Secondary fallback slot. Currently only Women has a homepage
+ * "Featured silhouettes" rail with its own slot set — reuse those when
+ * the more-specific category banner slot is empty.
+ */
+function fallbackSlotForCategory(
+  audience: string,
+  category: string,
+): SiteImageSlot | null {
+  if (audience !== 'women') return null;
+  const slot = `women_featured_${category.replace(/-/g, '_')}`;
+  if (!WOMEN_FEATURED_SLOTS.has(slot)) return null;
+  return slot as SiteImageSlot;
+}
+
 export interface ResolvedCategoryImage {
   src: string;
   alt: string;
@@ -50,6 +78,12 @@ export interface ResolvedCategoryImage {
 
 /**
  * Single-category resolution. Useful when a page only needs one banner.
+ *
+ * Resolution order:
+ *   1. `category_<audience>_<slug>` (the canonical category banner slot)
+ *   2. `<audience>_featured_<slug>` (only for women — falls back to the
+ *      homepage "Featured silhouettes" upload so one upload populates both)
+ *   3. The hardcoded fallback URL.
  */
 export async function getCategoryBannerImage(
   audience: string,
@@ -61,38 +95,63 @@ export async function getCategoryBannerImage(
     alt: fallbackAlt,
     uploaded: false,
   };
-  const slot = slotForCategory(audience, category);
-  if (!slot) return fallback;
-  const all = await listSiteImages([slot]);
-  const live = all[slot];
-  if (!live?.url) return fallback;
-  return { src: live.url, alt: live.alt ?? fallbackAlt, uploaded: true };
+  const primary = slotForCategory(audience, category);
+  const secondary = fallbackSlotForCategory(audience, category);
+  const toQuery: SiteImageSlot[] = [primary, secondary].filter(
+    (s): s is SiteImageSlot => !!s,
+  );
+  if (toQuery.length === 0) return fallback;
+  const all = await listSiteImages(toQuery);
+  const primaryRow = primary ? all[primary] : null;
+  const secondaryRow = secondary ? all[secondary] : null;
+  const winner = primaryRow?.url ? primaryRow : secondaryRow;
+  if (!winner?.url) return fallback;
+  return {
+    src: winner.url,
+    alt: winner.alt ?? fallbackAlt,
+    uploaded: true,
+  };
 }
 
 /**
  * Batch resolution for an audience landing page that renders all of its
  * category tiles in one go. Returns a map keyed by category slug.
+ *
+ * Each tile resolves via the same order as `getCategoryBannerImage`:
+ * canonical category banner → women-featured fallback → hardcoded URL.
+ * Both slot sets are fetched in a single round-trip.
  */
 export async function listCategoryBannerImages(
   audience: string,
   categories: { slug: string; label: string }[],
 ): Promise<Record<string, ResolvedCategoryImage>> {
-  const slotByCategory = new Map<string, SiteImageSlot>();
+  const primaryByCategory = new Map<string, SiteImageSlot>();
+  const secondaryByCategory = new Map<string, SiteImageSlot>();
   for (const c of categories) {
-    const s = slotForCategory(audience, c.slug);
-    if (s) slotByCategory.set(c.slug, s);
+    const p = slotForCategory(audience, c.slug);
+    if (p) primaryByCategory.set(c.slug, p);
+    const s = fallbackSlotForCategory(audience, c.slug);
+    if (s) secondaryByCategory.set(c.slug, s);
   }
-  const slots = Array.from(slotByCategory.values());
-  const live = slots.length ? await listSiteImages(slots) : null;
+  const allSlots = Array.from(
+    new Set<SiteImageSlot>([
+      ...primaryByCategory.values(),
+      ...secondaryByCategory.values(),
+    ]),
+  );
+  const live = allSlots.length ? await listSiteImages(allSlots) : null;
 
   const out: Record<string, ResolvedCategoryImage> = {};
   for (const c of categories) {
-    const slot = slotByCategory.get(c.slug);
-    const liveRow = slot && live ? live[slot] : null;
-    if (liveRow?.url) {
+    const primary = primaryByCategory.get(c.slug);
+    const secondary = secondaryByCategory.get(c.slug);
+    const primaryRow = primary && live ? live[primary] : null;
+    const secondaryRow = secondary && live ? live[secondary] : null;
+    const winner = primaryRow?.url ? primaryRow : secondaryRow;
+    if (winner?.url) {
       out[c.slug] = {
-        src: liveRow.url,
-        alt: liveRow.alt ?? c.label,
+        src: winner.url,
+        alt: winner.alt ?? c.label,
         uploaded: true,
       };
     } else {
