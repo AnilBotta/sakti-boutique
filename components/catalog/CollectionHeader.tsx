@@ -17,6 +17,12 @@ interface CollectionHeaderProps {
   description?: string;
   breadcrumbs: Crumb[];
   bannerImage?: string;
+  /**
+   * Skip the Next.js image optimizer for the banner. Use when the bannerImage
+   * is a fresh Supabase Storage URL — avoids cold-fetch quirks the proxy
+   * sometimes hits before the object is cached.
+   */
+  bannerUnoptimized?: boolean;
   resultCount?: number;
   siblings?: SiblingLink[];
   children?: ReactNode;
@@ -33,6 +39,7 @@ export function CollectionHeader({
   description,
   breadcrumbs,
   bannerImage,
+  bannerUnoptimized,
   resultCount,
   siblings,
   children,
@@ -48,6 +55,7 @@ export function CollectionHeader({
             priority
             sizes="100vw"
             className="object-cover"
+            unoptimized={bannerUnoptimized}
           />
           <div
             aria-hidden
