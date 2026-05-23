@@ -122,23 +122,37 @@ export function ReviewsClient({ initialReviews }: Props) {
         )}
       </AdminSectionCard>
 
-      <AdminSectionCard title="All reviews" bodyClassName="p-0">
-        <ul className="divide-y divide-border-hairline">
-          {reviews.map((r) => (
-            <li key={r.id} className="flex items-center gap-4 px-6 py-3">
-              <div className="flex-1 min-w-0">
-                <p className="truncate text-body font-medium text-text-primary">
-                  {r.product}
-                </p>
-                <p className="truncate text-caption text-text-muted">
-                  {r.author} · {r.excerpt}
-                </p>
-              </div>
-              <Stars n={r.rating} />
-              <AdminStatusBadge status={r.status} />
-            </li>
-          ))}
-        </ul>
+      <AdminSectionCard
+        title="All reviews"
+        description={reviews.length === 0 ? undefined : `${reviews.length} total`}
+        bodyClassName="p-0"
+      >
+        {reviews.length === 0 ? (
+          <div className="flex flex-col items-center justify-center gap-1 px-6 py-12 text-center">
+            <p className="text-body text-text-secondary">No reviews yet.</p>
+            <p className="text-caption text-text-muted">
+              Customer reviews submitted from a product page will appear here
+              for moderation.
+            </p>
+          </div>
+        ) : (
+          <ul className="divide-y divide-border-hairline">
+            {reviews.map((r) => (
+              <li key={r.id} className="flex items-center gap-4 px-6 py-3">
+                <div className="flex-1 min-w-0">
+                  <p className="truncate text-body font-medium text-text-primary">
+                    {r.product}
+                  </p>
+                  <p className="truncate text-caption text-text-muted">
+                    {r.author} · {r.excerpt}
+                  </p>
+                </div>
+                <Stars n={r.rating} />
+                <AdminStatusBadge status={r.status} />
+              </li>
+            ))}
+          </ul>
+        )}
       </AdminSectionCard>
     </>
   );

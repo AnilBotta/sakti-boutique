@@ -9,6 +9,7 @@ import { ProductAccordion } from '@/components/pdp/ProductAccordion';
 import { TryMeBlock } from '@/components/pdp/TryMeBlock';
 import { RelatedProducts } from '@/components/pdp/RelatedProducts';
 import { ProductJsonLd } from '@/components/pdp/ProductJsonLd';
+import { ProductReviews } from '@/components/pdp/reviews/ProductReviews';
 import {
   getProductDetails,
   getRelatedProducts,
@@ -94,6 +95,12 @@ export default async function ProductPage({ params }: PageProps) {
         <div className="mt-16 md:mt-24 lg:mt-28 lg:grid lg:grid-cols-12 lg:gap-14">
           <div className="lg:col-span-8 lg:col-start-1">
             <ProductAccordion product={product} />
+          </div>
+        </div>
+
+        <div className="lg:grid lg:grid-cols-12 lg:gap-14">
+          <div className="lg:col-span-8 lg:col-start-1">
+            <ProductReviews productId={product.id} productSlug={product.slug} />
           </div>
         </div>
       </Container>

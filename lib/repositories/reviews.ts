@@ -1,15 +1,13 @@
 /**
  * Reviews repository — admin reads + status mutations.
- * Falls back to mock data when DB is empty.
+ * Returns whatever is in the DB. Empty DB → empty list; the admin UI
+ * renders an empty state. Customer submissions land via the storefront
+ * server action (lib/actions/storefront-reviews.ts) as `status='pending'`.
  */
 
 import 'server-only';
 
-import {
-  reviewQueue as placeholderReviews,
-  type ReviewRow,
-  type ReviewStatus,
-} from '@/lib/admin/mock-data';
+import type { ReviewRow, ReviewStatus } from '@/lib/admin/mock-data';
 import {
   isSupabaseConfigured,
   isSupabaseAdminConfigured,
@@ -53,10 +51,10 @@ function toReviewRow(row: DbReviewRow): ReviewRow {
 export async function listReviews(limit = 100): Promise<ReviewRow[]> {
   if (!isSupabaseConfigured()) {
     warnOncePlaceholderMode('reviews.list');
-    return placeholderReviews.slice(0, limit);
+    return [];
   }
   const db = getAdminSupabase() ?? getServerSupabase();
-  if (!db) return placeholderReviews.slice(0, limit);
+  if (!db) return [];
 
   const { data, error } = await db
     .from('reviews')
@@ -65,10 +63,7 @@ export async function listReviews(limit = 100): Promise<ReviewRow[]> {
     .limit(limit);
   if (error) {
     console.error('[reviews.list]', error.message);
-    return placeholderReviews.slice(0, limit);
-  }
-  if (!data || data.length === 0) {
-    return placeholderReviews.slice(0, limit);
+    return [];
   }
   return (data as unknown as DbReviewRow[]).map(toReviewRow);
 }
@@ -76,6 +71,80 @@ export async function listReviews(limit = 100): Promise<ReviewRow[]> {
 export async function listPendingReviews(limit = 100): Promise<ReviewRow[]> {
   const all = await listReviews(limit);
   return all.filter((r) => r.status === 'pending');
+}
+
+/**
+ * Public-facing review shape rendered on the PDP. Excludes moderation status
+ * and other admin-only fields.
+ */
+export interface PublicReview {
+  id: string;
+  author: string;
+  rating: number;
+  title: string | null;
+  body: string;
+  submittedAt: string;
+}
+
+export interface ProductReviewSummary {
+  count: number;
+  /** Mean rating, rounded to one decimal. 0 when count === 0. */
+  average: number;
+  /** Most recent approved reviews for the product, newest first. */
+  reviews: PublicReview[];
+}
+
+/**
+ * Approved reviews for a single product, plus a summary the PDP uses to
+ * render the average-rating header. Always returns a valid summary — empty
+ * count/avg/list when the product has no reviews yet.
+ */
+export async function getProductReviews(
+  productId: string,
+  limit = 20,
+): Promise<ProductReviewSummary> {
+  const empty: ProductReviewSummary = { count: 0, average: 0, reviews: [] };
+  if (!isSupabaseConfigured()) {
+    warnOncePlaceholderMode('reviews.public');
+    return empty;
+  }
+  const db = getServerSupabase();
+  if (!db) return empty;
+
+  const { data, error } = await db
+    .from('reviews')
+    .select('id, author_name, rating, title, body, submitted_at')
+    .eq('product_id', productId)
+    .eq('status', 'approved')
+    .order('submitted_at', { ascending: false })
+    .limit(limit);
+  if (error) {
+    console.error('[reviews.public]', error.message);
+    return empty;
+  }
+  const rows = (data ?? []) as Array<{
+    id: string;
+    author_name: string;
+    rating: number;
+    title: string | null;
+    body: string;
+    submitted_at: string;
+  }>;
+  if (rows.length === 0) return empty;
+
+  const sum = rows.reduce((n, r) => n + r.rating, 0);
+  return {
+    count: rows.length,
+    average: Math.round((sum / rows.length) * 10) / 10,
+    reviews: rows.map((r) => ({
+      id: r.id,
+      author: r.author_name,
+      rating: r.rating,
+      title: r.title,
+      body: r.body,
+      submittedAt: r.submitted_at,
+    })),
+  };
 }
 
 export type ReviewMutationResult =
