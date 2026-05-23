@@ -113,27 +113,6 @@ export const featuredProducts: FeaturedProduct[] = [
   },
 ];
 
-export const testimonials = [
-  {
-    quote:
-      'The craftsmanship is extraordinary. My Banarasi saree arrived beautifully packaged and the silk is exactly as pictured.',
-    name: 'Priya R.',
-    location: 'San Francisco, CA',
-  },
-  {
-    quote:
-      'Finally a boutique that understands modern silhouettes without losing the soul of traditional Indian wear.',
-    name: 'Anita M.',
-    location: 'Austin, TX',
-  },
-  {
-    quote:
-      'The Try Me feature helped me pick the right kurthi for Diwali. My family was stunned. Sakthi is now my go-to.',
-    name: 'Divya K.',
-    location: 'New Jersey',
-  },
-];
-
 export const lookbookImages = [
   {
     src: 'https://images.unsplash.com/photo-1583391733956-6c78276477e2?auto=format&fit=crop&w=1000&q=80',
