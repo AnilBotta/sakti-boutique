@@ -42,10 +42,10 @@ function toAdminOrderRow(row: OrderRow): AdminOrderRow {
 export async function listRecentOrders(limit = 10): Promise<AdminOrderRow[]> {
   if (!isSupabaseConfigured()) {
     warnOncePlaceholderMode('orders.listRecent');
-    return recentOrders.slice(0, limit);
+    return [];
   }
   const db = getAdminSupabase() ?? getServerSupabase();
-  if (!db) return recentOrders.slice(0, limit);
+  if (!db) return [];
 
   const { data, error } = await db
     .from('orders')
@@ -54,12 +54,7 @@ export async function listRecentOrders(limit = 10): Promise<AdminOrderRow[]> {
     .limit(limit);
   if (error) {
     console.error('[orders.listRecent]', error.message);
-    return recentOrders.slice(0, limit);
-  }
-  // No rows yet (Step 10B seeds catalog only) → fall back to mock so the
-  // dashboard still renders believable activity until orders start landing.
-  if (!data || data.length === 0) {
-    return recentOrders.slice(0, limit);
+    return [];
   }
   return (data as unknown as OrderRow[]).map(toAdminOrderRow);
 }

@@ -8,29 +8,19 @@ import { KpiCard } from '@/components/admin/dashboard/KpiCard';
 import { RevenueChart } from '@/components/admin/dashboard/RevenueChart';
 import { PendingActionsList } from '@/components/admin/dashboard/PendingActionsList';
 import { QuickActions } from '@/components/admin/dashboard/QuickActions';
-import { getDashboardStats } from '@/lib/repositories/admin-stats';
+import {
+  getDashboardStats,
+  getRevenueLast30Days,
+  getTopProducts,
+  type TopProductRow,
+} from '@/lib/repositories/admin-stats';
 import { listRecentOrders } from '@/lib/repositories/orders';
 import { listCustomers } from '@/lib/repositories/customers';
-import {
-  topProducts,
-  type AdminOrderRow,
-  type TopProductRow,
-} from '@/lib/admin/mock-data';
+import type { AdminOrderRow } from '@/lib/admin/mock-data';
 
 function usd(n: number) {
   return `$${n.toLocaleString('en-US')}`;
 }
-
-// Last 30 days of revenue — synthetic until Stripe is wired and orders flow.
-const revenue30d = [
-  3120, 2980, 3420, 3680, 3210, 2840, 3950, 4120, 3760, 3490,
-  3880, 4210, 4480, 4150, 3920, 4310, 4670, 4890, 4540, 4280,
-  4470, 4710, 4920, 4820, 5040, 4880, 4730, 5120, 5060, 4820,
-];
-
-const revenueSpark = revenue30d.slice(-14);
-const ordersSpark = [22, 18, 24, 28, 25, 21, 27, 31, 29, 26, 32, 30, 28, 31];
-const aovSpark = [142, 148, 151, 154, 159, 156, 162, 158, 155, 160, 156, 154, 158, 156];
 
 const orderCols: AdminColumn<AdminOrderRow>[] = [
   {
@@ -69,22 +59,48 @@ const topCols: AdminColumn<TopProductRow>[] = [
     key: 'units',
     header: 'Units',
     align: 'right',
-    cell: (r) => <span className="nums-tabular">{r.units}</span>,
+    cell: (r) => (
+      <span className="nums-tabular text-text-muted">
+        {r.units > 0 ? r.units : '—'}
+      </span>
+    ),
   },
   {
     key: 'revenue',
     header: 'Revenue',
     align: 'right',
-    cell: (r) => <span className="nums-tabular">{usd(r.revenue)}</span>,
+    cell: (r) => (
+      <span className="nums-tabular text-text-muted">
+        {r.revenue > 0 ? usd(r.revenue) : '—'}
+      </span>
+    ),
   },
 ];
 
+function EmptyState({
+  title,
+  hint,
+}: {
+  title: string;
+  hint?: string;
+}) {
+  return (
+    <div className="flex flex-col items-center justify-center gap-1 px-6 py-10 text-center">
+      <p className="text-body text-text-secondary">{title}</p>
+      {hint && <p className="text-caption text-text-muted">{hint}</p>}
+    </div>
+  );
+}
+
 export default async function AdminDashboardPage() {
-  const [stats, recentOrders, recentCustomers] = await Promise.all([
-    getDashboardStats(),
-    listRecentOrders(5),
-    listCustomers(5),
-  ]);
+  const [stats, revenue30d, topProducts, recentOrders, recentCustomers] =
+    await Promise.all([
+      getDashboardStats(),
+      getRevenueLast30Days(),
+      getTopProducts(5),
+      listRecentOrders(5),
+      listCustomers(5),
+    ]);
 
   const pendingActions = [
     {
@@ -117,6 +133,10 @@ export default async function AdminDashboardPage() {
     },
   ].filter((a) => a.count > 0);
 
+  const revenue30dTotal = revenue30d.reduce((a, b) => a + b, 0);
+  const hasRevenueSeries = revenue30dTotal > 0;
+  const revenueSpark = hasRevenueSeries ? revenue30d.slice(-14) : undefined;
+
   return (
     <AdminScaffoldPage
       eyebrow="Overview"
@@ -128,23 +148,33 @@ export default async function AdminDashboardPage() {
         <KpiCard
           label="Revenue · Today"
           value={usd(stats.revenueToday)}
-          delta={stats.revenueTodayDelta}
-          helper="vs. yesterday"
+          delta={stats.revenueTodayDelta ?? undefined}
+          helper={
+            stats.revenueTodayDelta === null
+              ? stats.hasAnyOrders
+                ? 'no orders yesterday'
+                : 'no orders yet'
+              : 'vs. yesterday'
+          }
           spark={revenueSpark}
         />
         <KpiCard
           label="Orders · Today"
           value={stats.ordersToday}
-          delta={stats.ordersTodayDelta}
-          helper="vs. yesterday"
-          spark={ordersSpark}
+          delta={stats.ordersTodayDelta ?? undefined}
+          helper={
+            stats.ordersTodayDelta === null
+              ? stats.hasAnyOrders
+                ? 'no orders yesterday'
+                : 'no orders yet'
+              : 'vs. yesterday'
+          }
         />
         <KpiCard
           label="Average Order Value"
           value={usd(stats.aov)}
-          delta={stats.aovDelta}
-          helper="7-day avg"
-          spark={aovSpark}
+          delta={stats.aovDelta ?? undefined}
+          helper={stats.aov > 0 ? '7-day avg' : 'no orders in last 7 days'}
         />
         <KpiCard
           label="Low Stock"
@@ -157,12 +187,23 @@ export default async function AdminDashboardPage() {
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
         <AdminSectionCard
           title="Revenue · Last 30 days"
-          description={`Total ${usd(revenue30d.reduce((a, b) => a + b, 0))}`}
+          description={
+            hasRevenueSeries
+              ? `Total ${usd(revenue30dTotal)}`
+              : 'No revenue in the last 30 days'
+          }
           action={{ label: 'Orders', href: '/admin/orders' }}
           className="xl:col-span-8"
-          bodyClassName="px-4 pt-4 pb-6"
+          bodyClassName={hasRevenueSeries ? 'px-4 pt-4 pb-6' : 'p-0'}
         >
-          <RevenueChart points={revenue30d} />
+          {hasRevenueSeries ? (
+            <RevenueChart points={revenue30d} />
+          ) : (
+            <EmptyState
+              title="No orders yet."
+              hint="Once orders start landing, the chart will populate here."
+            />
+          )}
         </AdminSectionCard>
 
         <AdminSectionCard
@@ -180,23 +221,36 @@ export default async function AdminDashboardPage() {
           title="Recent Orders"
           description="Latest activity"
           action={{ label: 'View all', href: '/admin/orders' }}
+          bodyClassName={recentOrders.length === 0 ? 'p-0' : undefined}
         >
           <AdminTable
             columns={orderCols}
             rows={recentOrders}
             rowKey={(r) => r.id}
+            empty={<EmptyState title="No orders yet." />}
           />
         </AdminSectionCard>
 
         <AdminSectionCard
           title="Top Products"
-          description="Last 30 days"
+          description={
+            topProducts.some((p) => p.units > 0)
+              ? 'Last 30 days'
+              : 'Most recent active products'
+          }
           action={{ label: 'Products', href: '/admin/products' }}
+          bodyClassName={topProducts.length === 0 ? 'p-0' : undefined}
         >
           <AdminTable
             columns={topCols}
-            rows={topProducts.slice(0, 5)}
+            rows={topProducts}
             rowKey={(r) => r.id}
+            empty={
+              <EmptyState
+                title="No products yet."
+                hint="Add products from the Products page to see them here."
+              />
+            }
           />
         </AdminSectionCard>
 
@@ -206,30 +260,37 @@ export default async function AdminDashboardPage() {
           action={{ label: 'View all', href: '/admin/customers' }}
           bodyClassName="p-0"
         >
-          <ul className="divide-y divide-border-hairline">
-            {recentCustomers.map((c) => (
-              <li key={c.id} className="flex items-center gap-3 px-6 py-3">
-                <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center border border-border-hairline bg-bg-subtle text-caption font-medium text-text-primary">
-                  {c.name
-                    .split(' ')
-                    .map((p) => p[0])
-                    .join('')
-                    .slice(0, 2)}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-body font-medium text-text-primary">
-                    {c.name}
-                  </p>
-                  <p className="text-caption text-text-muted truncate">
-                    {c.email}
-                  </p>
-                </div>
-                <span className="text-caption text-text-muted nums-tabular">
-                  {usd(c.lifetime)}
-                </span>
-              </li>
-            ))}
-          </ul>
+          {recentCustomers.length === 0 ? (
+            <EmptyState
+              title="No customers yet."
+              hint="Customers appear here after their first sign-up or order."
+            />
+          ) : (
+            <ul className="divide-y divide-border-hairline">
+              {recentCustomers.map((c) => (
+                <li key={c.id} className="flex items-center gap-3 px-6 py-3">
+                  <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center border border-border-hairline bg-bg-subtle text-caption font-medium text-text-primary">
+                    {c.name
+                      .split(' ')
+                      .map((p) => p[0])
+                      .join('')
+                      .slice(0, 2)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-body font-medium text-text-primary">
+                      {c.name}
+                    </p>
+                    <p className="text-caption text-text-muted truncate">
+                      {c.email}
+                    </p>
+                  </div>
+                  <span className="text-caption text-text-muted nums-tabular">
+                    {usd(c.lifetime)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
         </AdminSectionCard>
       </div>
     </AdminScaffoldPage>
