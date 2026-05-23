@@ -13,6 +13,8 @@ interface PageHeroProps {
   title: ReactNode;
   lede?: ReactNode;
   image?: { src: string; alt: string };
+  /** Skip the Next.js image optimizer — use for Supabase Storage uploads. */
+  imageUnoptimized?: boolean;
   align?: 'left' | 'center';
   className?: string;
 }
@@ -29,6 +31,7 @@ export function PageHero({
   title,
   lede,
   image,
+  imageUnoptimized,
   align = 'left',
   className,
 }: PageHeroProps) {
@@ -94,6 +97,7 @@ export function PageHero({
                 priority
                 sizes="(min-width: 1280px) 1280px, 100vw"
                 className="object-cover"
+                unoptimized={imageUnoptimized}
               />
             </motion.div>
           </motion.div>

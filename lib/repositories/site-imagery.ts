@@ -39,6 +39,15 @@ export const SITE_IMAGE_SLOTS = [
   'landing_hero_women',
   'landing_hero_men',
   'landing_hero_kids',
+  // /about page editorial imagery
+  'about_hero',
+  'about_craftsmanship',
+  'about_service',
+  // /about — "The craft, in four frames" AtelierStrip
+  'about_atelier_fabric',
+  'about_atelier_embroidery',
+  'about_atelier_dye',
+  'about_atelier_finish',
   // Category banners — shown as the SubcategoryRail tile images on the
   // audience landing pages (/women, /men, /kids).
   // Women (5)
