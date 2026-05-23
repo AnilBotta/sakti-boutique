@@ -5,6 +5,7 @@ import { CatalogBrowser } from '@/components/catalog/CatalogBrowser';
 import { taxonomy } from '@/lib/catalog/taxonomy';
 import { listProducts } from '@/lib/repositories/catalog';
 import { listCategoryBannerImages } from '@/lib/catalog/category-imagery.server';
+import { getSiteImage } from '@/lib/repositories/site-imagery';
 
 export const metadata: Metadata = {
   title: 'Men',
@@ -14,10 +15,12 @@ export const metadata: Metadata = {
 
 export default async function MenLandingPage() {
   const node = taxonomy.men;
-  const [banners, products] = await Promise.all([
+  const [banners, products, heroSlot] = await Promise.all([
     listCategoryBannerImages('men', node.categories),
     listProducts({ audience: 'men', limit: 48 }),
+    getSiteImage('landing_hero_men'),
   ]);
+  const heroImage = heroSlot.url ?? node.heroImage;
   const items = node.categories.map((c) => ({
     label: c.label,
     href: `/men/${c.slug}`,
@@ -31,7 +34,8 @@ export default async function MenLandingPage() {
         title="The Men's Edit"
         description={node.description}
         breadcrumbs={[{ label: 'Home', href: '/' }, { label: 'Men' }]}
-        bannerImage={node.heroImage}
+        bannerImage={heroImage}
+        bannerUnoptimized={!!heroSlot.url}
       />
 
       <SubcategoryRail

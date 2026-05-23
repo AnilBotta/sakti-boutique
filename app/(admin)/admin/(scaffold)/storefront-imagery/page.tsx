@@ -83,6 +83,22 @@ const SLOT_META: Record<SiteImageSlot, SlotMeta> = {
     label: 'Lookbook — frame 4 (full width)',
     description: 'Wide frame across the bottom of the lookbook grid.',
   },
+  // -- Audience landing heroes --------------------------------------------
+  landing_hero_women: {
+    label: 'Women landing hero',
+    description:
+      'The full-bleed banner at the top of /women — "The Women’s House".',
+  },
+  landing_hero_men: {
+    label: 'Men landing hero',
+    description:
+      'The full-bleed banner at the top of /men — "The Men’s Edit".',
+  },
+  landing_hero_kids: {
+    label: 'Kids landing hero',
+    description:
+      'The full-bleed banner at the top of /kids — "Festive Little Ones".',
+  },
   // -- Category banners — Women -------------------------------------------
   category_women_kurthis: {
     label: 'Women → Kurthis banner',
@@ -173,6 +189,12 @@ const SLOT_GROUPS: SlotGroup[] = [
       'lookbook_3',
       'lookbook_4',
     ],
+  },
+  {
+    title: 'Audience landing heroes',
+    description:
+      'The big full-bleed banner at the top of each /women, /men, /kids landing page.',
+    slots: ['landing_hero_women', 'landing_hero_men', 'landing_hero_kids'],
   },
   {
     title: 'Category banners — Women',

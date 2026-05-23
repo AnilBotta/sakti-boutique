@@ -34,6 +34,11 @@ export const SITE_IMAGE_SLOTS = [
   'lookbook_2',
   'lookbook_3',
   'lookbook_4',
+  // Full-bleed hero banner at the top of each audience landing page
+  // (/women, /men, /kids).
+  'landing_hero_women',
+  'landing_hero_men',
+  'landing_hero_kids',
   // Category banners — shown as the SubcategoryRail tile images on the
   // audience landing pages (/women, /men, /kids).
   // Women (5)
