@@ -1,5 +1,6 @@
 import { Section } from '@/components/layout/Section';
 import { Reveal } from '@/components/motion/Reveal';
+import { NewsletterForm } from './NewsletterForm';
 
 export function Newsletter() {
   return (
@@ -20,27 +21,7 @@ export function Newsletter() {
           </p>
         </Reveal>
         <Reveal delay={0.24}>
-          <form
-            className="mt-8 flex flex-col items-stretch gap-3 sm:flex-row sm:items-center"
-            // Real submission wired in a later step
-          >
-            <label htmlFor="newsletter-email" className="sr-only">
-              Email address
-            </label>
-            <input
-              id="newsletter-email"
-              type="email"
-              required
-              placeholder="your@email.com"
-              className="h-12 flex-1 rounded-md border border-border bg-bg-canvas px-4 text-body text-text-primary placeholder:text-text-muted transition-colors duration-fast ease-standard focus:border-accent-ember focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-ember focus-visible:ring-offset-2"
-            />
-            <button
-              type="submit"
-              className="inline-flex h-12 items-center justify-center rounded-md bg-accent-ember px-7 text-button font-medium uppercase tracking-[0.02em] text-bg-canvas transition-all duration-fast ease-standard hover:bg-[#b04e16] active:scale-[0.985] focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-ember focus-visible:ring-offset-2"
-            >
-              Subscribe
-            </button>
-          </form>
+          <NewsletterForm source="homepage" />
         </Reveal>
         <Reveal delay={0.32}>
           <p className="mt-4 text-caption text-text-muted">
