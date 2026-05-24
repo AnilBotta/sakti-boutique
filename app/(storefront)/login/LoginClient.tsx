@@ -36,6 +36,11 @@ export function LoginClient({ redirectTo }: Props) {
   const [topMessage, setTopMessage] = useState<{
     tone: 'error' | 'info';
     text: string;
+    /**
+     * When true, render a "Create account instead" button alongside the
+     * message so genuinely new visitors don't have to find the tab manually.
+     */
+     offerSignup?: boolean;
   } | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -47,6 +52,9 @@ export function LoginClient({ redirectTo }: Props) {
     setMode(next);
     setErrors({});
     setTopMessage(null);
+    // Drop the password when moving between modes; keep email + name so the
+    // customer doesn't retype what they just entered.
+    setState((s) => ({ ...s, password: '' }));
   }
 
   function submit(e: React.FormEvent) {
@@ -72,9 +80,16 @@ export function LoginClient({ redirectTo }: Props) {
       }
       if (res.fieldErrors) setErrors(res.fieldErrors);
       if (res.message) {
+        const isInfo =
+          'needsConfirmation' in res && res.needsConfirmation;
+        const offerSignup =
+          mode === 'signin' &&
+          'noAccountHint' in res &&
+          !!res.noAccountHint;
         setTopMessage({
-          tone: 'needsConfirmation' in res && res.needsConfirmation ? 'info' : 'error',
+          tone: isInfo ? 'info' : 'error',
           text: res.message,
+          offerSignup,
         });
       }
     });
@@ -205,7 +220,16 @@ export function LoginClient({ redirectTo }: Props) {
                 : 'border-state-success/30 bg-bg-canvas text-text-primary',
             )}
           >
-            {topMessage.text}
+            <p>{topMessage.text}</p>
+            {topMessage.offerSignup && (
+              <button
+                type="button"
+                onClick={() => switchMode('signup')}
+                className="mt-2 inline-flex h-9 items-center justify-center border border-accent-crimson/40 bg-bg-canvas px-3 text-[11px] font-medium uppercase tracking-[0.12em] text-accent-crimson transition-colors duration-fast ease-standard hover:bg-bg-subtle"
+              >
+                Create account instead
+              </button>
+            )}
           </div>
         )}
 
