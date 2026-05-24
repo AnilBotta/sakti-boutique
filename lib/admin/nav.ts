@@ -11,6 +11,7 @@ import {
   Boxes,
   BellRing,
   Image as ImageIcon,
+  Mail,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -31,6 +32,7 @@ export type AdminNavKey =
   | 'categories'
   | 'orders'
   | 'customers'
+  | 'subscribers'
   | 'reviews'
   | 'alerts'
   | 'content'
@@ -158,6 +160,15 @@ export const adminNav: AdminNavGroup[] = [
         eyebrow: 'Commerce',
         description: 'Customer profiles, lifetime value, and order history.',
         scaffoldOnly: true,
+      },
+      {
+        key: 'subscribers',
+        label: 'Subscribers',
+        href: '/admin/subscribers',
+        section: 'commerce',
+        icon: Mail,
+        eyebrow: 'Commerce',
+        description: 'Newsletter sign-ups from the storefront — export anytime.',
       },
       {
         key: 'reviews',
