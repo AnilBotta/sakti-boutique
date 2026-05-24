@@ -43,7 +43,7 @@ function unavailable(): AuthActionResult {
  */
 export async function signInAction(
   formData: FormData,
-): Promise<AuthActionResult & { redirectTo?: string }> {
+): Promise<AuthActionResult & { redirectTo?: string; noAccountHint?: boolean }> {
   const email = (formData.get('email')?.toString() || '').trim();
   const password = formData.get('password')?.toString() || '';
   const redirectTo = sanitizeRedirect(
@@ -65,10 +65,15 @@ export async function signInAction(
 
   const { error } = await db.auth.signInWithPassword({ email, password });
   if (error) {
-    // Don't leak whether the email exists.
+    // Don't leak whether the email exists at the API level — both
+    // "no account" and "wrong password" return the same shape. The
+    // client UI nudges toward Create account regardless, which is
+    // useful for genuinely new visitors and harmless for typos.
     return {
       ok: false,
-      message: 'Email or password is incorrect.',
+      message:
+        "We couldn't sign you in with those details. New to Sakthi? Create an account, or check your password and try again.",
+      noAccountHint: true,
     };
   }
   revalidatePath('/account', 'layout');
