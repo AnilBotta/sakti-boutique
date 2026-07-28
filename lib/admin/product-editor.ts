@@ -77,6 +77,11 @@ export interface EditableProduct {
   subcategory?: string;
   price: number;
   originalPrice?: number | null;
+  /**
+   * Optional Instagram reel/post URL. When set, the PDP renders a
+   * "Watch on Instagram" button so shoppers can see the piece in motion.
+   */
+  instagramUrl: string | null;
   variants: EditableVariant[];
   media: EditableMedia[];
   seo: EditableSeo;
@@ -180,6 +185,7 @@ export function makeEmptyEditableProduct(): EditableProduct {
     subcategory: undefined,
     price: 0,
     originalPrice: null,
+    instagramUrl: null,
     variants: [makeEmptyVariant()],
     media: [],
     seo: {
@@ -265,6 +271,7 @@ export function toEditableProduct(slugOrId: string): EditableProduct | null {
     subcategory: source.subcategory,
     price: source.price,
     originalPrice: source.originalPrice ?? null,
+    instagramUrl: null,
     variants,
     media,
     seo: {
