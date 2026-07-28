@@ -54,8 +54,12 @@ export function SocialLinksCard({ product, onChange }: SocialLinksCardProps) {
             PDP preview
           </div>
           <div className="inline-flex h-10 items-center gap-2 border border-border-default bg-bg-canvas px-4 text-caption font-medium uppercase tracking-[0.12em] text-text-primary">
-            <Instagram className="h-4 w-4" strokeWidth={1.5} />
-            Watch on Instagram
+            <Instagram
+              className="h-4 w-4"
+              style={{ color: '#E4405F' }}
+              strokeWidth={1.75}
+            />
+            See it on video
           </div>
           <p className="mt-2 truncate text-caption text-text-muted">{trimmed}</p>
         </div>
