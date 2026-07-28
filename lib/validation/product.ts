@@ -170,6 +170,21 @@ export function validateTryOn(_p: EditableProduct): FieldError[] {
   return [];
 }
 
+const INSTAGRAM_URL_PATTERN =
+  /^https?:\/\/(?:[a-z0-9-]+\.)*instagram\.com\//i;
+
+export function validateSocial(p: EditableProduct): FieldError[] {
+  const errs: FieldError[] = [];
+  const raw = p.instagramUrl?.trim();
+  if (raw && !INSTAGRAM_URL_PATTERN.test(raw)) {
+    errs.push({
+      path: 'instagramUrl',
+      message: 'Enter a valid instagram.com URL (or leave blank).',
+    });
+  }
+  return errs;
+}
+
 // ---------------------------------------------------------------------------
 // Full payload validation
 // ---------------------------------------------------------------------------
@@ -183,6 +198,7 @@ export function validateEditableProduct(
     ...validateVariants(p),
     ...validateMedia(p),
     ...validateSeo(p),
+    ...validateSocial(p),
     ...validateChannel(p),
     ...validateTryOn(p),
   ];

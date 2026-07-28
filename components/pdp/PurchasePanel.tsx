@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils/cn';
 import { Price } from './Price';
 import { VariantPicker } from './VariantPicker';
 import { SizeGuideDialog } from './SizeGuideDialog';
+import { InstagramLink } from './InstagramLink';
 
 interface PurchasePanelProps {
   product: ProductDetails;
@@ -130,6 +131,10 @@ export function PurchasePanel({ product, eyebrow }: PurchasePanelProps) {
             />
           </button>
         </div>
+
+        {product.instagramUrl ? (
+          <InstagramLink url={product.instagramUrl} />
+        ) : null}
 
         <ul className="grid grid-cols-1 gap-3 border-t border-border-hairline pt-6 text-caption text-text-secondary sm:grid-cols-3">
           <li className="flex items-center gap-2">

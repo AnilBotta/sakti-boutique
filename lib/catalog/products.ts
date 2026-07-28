@@ -23,6 +23,8 @@ export interface Product {
   occasion: string[];
   inStock: boolean;
   createdAt: string; // ISO date — used for "New" sort
+  /** Instagram reel/post URL for this product — surfaced on the PDP. */
+  instagramUrl?: string | null;
 }
 
 const img = {

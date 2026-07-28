@@ -18,6 +18,7 @@ import { CategoryAssignmentCard } from './CategoryAssignmentCard';
 import { VariantMatrix } from './VariantMatrix';
 import { MediaGalleryField } from './MediaGalleryField';
 import { SeoFieldsCard } from './SeoFieldsCard';
+import { SocialLinksCard } from './SocialLinksCard';
 import { MerchandisingFlagsCard } from './MerchandisingFlagsCard';
 import { ChannelMappingCard } from './ChannelMappingCard';
 import { TryOnEligibilityCard } from './TryOnEligibilityCard';
@@ -242,6 +243,15 @@ export function ProductEditor({ initial, mode }: ProductEditorProps) {
 
         <AdminFormSection
           step="07"
+          eyebrow="Social"
+          title="Instagram reel or post"
+          description="Attach the Instagram URL that shows this piece in motion. Shoppers see a Watch on Instagram button on the PDP."
+        >
+          <SocialLinksCard product={product} onChange={patch} />
+        </AdminFormSection>
+
+        <AdminFormSection
+          step="08"
           eyebrow="SEO"
           title="Search visibility"
           description="Slug, meta title, and description. Previewed as a Google-style snippet below."
@@ -256,7 +266,7 @@ export function ProductEditor({ initial, mode }: ProductEditorProps) {
         </AdminFormSection>
 
         <AdminFormSection
-          step="08"
+          step="09"
           eyebrow="Merchandising"
           title="Flags and badges"
           description="Control which promotional badges appear on product cards and homepage rails."
@@ -265,7 +275,7 @@ export function ProductEditor({ initial, mode }: ProductEditorProps) {
         </AdminFormSection>
 
         <AdminFormSection
-          step="09"
+          step="10"
           eyebrow="Channels"
           title="Amazon channel mapping"
           description="The Sakthi storefront is the primary brand experience. Amazon is a secondary channel."
@@ -278,7 +288,7 @@ export function ProductEditor({ initial, mode }: ProductEditorProps) {
         </AdminFormSection>
 
         <AdminFormSection
-          step="10"
+          step="11"
           eyebrow="Experiences"
           title="Virtual Try-On eligibility"
           description="Enable Try Me on products with clean, mask-ready imagery."

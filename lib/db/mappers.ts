@@ -73,6 +73,7 @@ export function dbProductToStorefront(full: DbProductFull): Product {
     occasion,
     inStock: full.in_stock,
     createdAt: full.created_at,
+    instagramUrl: full.instagram_url ?? null,
   };
 }
 
@@ -156,6 +157,7 @@ export function dbProductToEditable(full: DbProductFull): EditableProduct {
     price: Number(full.price),
     originalPrice:
       full.original_price != null ? Number(full.original_price) : null,
+    instagramUrl: full.instagram_url ?? null,
     variants: variants
       .slice()
       .sort((a, b) => a.position - b.position)
@@ -195,6 +197,7 @@ export interface ProductWritePayload {
     best_seller: boolean;
     new_arrival: boolean;
     try_on_enabled: boolean;
+    instagram_url: string | null;
   };
   variants: Array<
     Omit<DbProductVariant, 'id' | 'product_id' | 'created_at' | 'updated_at'> & {
@@ -234,6 +237,7 @@ export function editableToWritePayload(p: EditableProduct): ProductWritePayload 
       best_seller: p.flags.bestSeller,
       new_arrival: p.flags.newArrival,
       try_on_enabled: p.flags.tryOnEnabled,
+      instagram_url: p.instagramUrl?.trim() || null,
     },
     variants: p.variants.map((v, i) => ({
       size: v.size || null,

@@ -45,6 +45,7 @@ type DbProductBase = {
   featured: boolean;
   best_seller: boolean;
   new_arrival: boolean;
+  instagram_url: string | null;
   in_stock: boolean;
   created_at: string;
 };
@@ -141,12 +142,39 @@ async function hydrateProducts(
       occasion,
       inStock: p.in_stock,
       createdAt: p.created_at,
+      instagramUrl: p.instagram_url ?? null,
     };
   });
 }
 
-const BASE_COLUMNS =
+const BASE_COLUMNS_WITH_IG =
+  'id, slug, name, description, fabric, audience, category_id, subcategory_id, price, original_price, featured, best_seller, new_arrival, instagram_url, in_stock, created_at';
+const BASE_COLUMNS_LEGACY =
   'id, slug, name, description, fabric, audience, category_id, subcategory_id, price, original_price, featured, best_seller, new_arrival, in_stock, created_at';
+
+/**
+ * Falls back to the legacy column set when the `instagram_url` column
+ * hasn't been added to the DB yet (migration 0012). Cached after the
+ * first probe so subsequent requests skip the retry.
+ *
+ * Once every environment has run migration 0012 this can be simplified
+ * back to a single string.
+ */
+let _instagramColumnPresent: boolean | null = null;
+function baseColumns(): string {
+  return _instagramColumnPresent === false
+    ? BASE_COLUMNS_LEGACY
+    : BASE_COLUMNS_WITH_IG;
+}
+function isMissingInstagramColumn(error: {
+  code?: string | null;
+  message?: string;
+}): boolean {
+  // Postgres 42703 = undefined_column. Message shape is
+  // `column products.instagram_url does not exist`.
+  if (error.code === '42703') return true;
+  return /instagram_url/.test(error.message ?? '');
+}
 
 export async function listProducts(
   opts: ListProductsOptions = {},
@@ -161,11 +189,20 @@ export async function listProducts(
     return [];
   }
 
-  let q = db.from('products').select(BASE_COLUMNS).eq('status', 'active');
-  if (opts.audience) q = q.eq('audience', opts.audience);
-  q = q.order('created_at', { ascending: false }).limit(opts.limit ?? 24);
+  const runList = async (columns: string) => {
+    let q = db.from('products').select(columns).eq('status', 'active');
+    if (opts.audience) q = q.eq('audience', opts.audience);
+    q = q.order('created_at', { ascending: false }).limit(opts.limit ?? 24);
+    return q;
+  };
 
-  const { data, error } = await q;
+  let { data, error } = await runList(baseColumns());
+  if (error && isMissingInstagramColumn(error)) {
+    _instagramColumnPresent = false;
+    ({ data, error } = await runList(BASE_COLUMNS_LEGACY));
+  } else if (!error && _instagramColumnPresent === null) {
+    _instagramColumnPresent = true;
+  }
   if (error) {
     console.error('[catalog.listProducts]', error.message);
     return [];
@@ -216,12 +253,21 @@ export async function getProductBySlug(slug: string): Promise<Product | null> {
   const db = getServerSupabase();
   if (!db) return null;
 
-  const { data, error } = await db
-    .from('products')
-    .select(BASE_COLUMNS)
-    .eq('slug', slug)
-    .eq('status', 'active')
-    .maybeSingle();
+  const runGet = (columns: string) =>
+    db
+      .from('products')
+      .select(columns)
+      .eq('slug', slug)
+      .eq('status', 'active')
+      .maybeSingle();
+
+  let { data, error } = await runGet(baseColumns());
+  if (error && isMissingInstagramColumn(error)) {
+    _instagramColumnPresent = false;
+    ({ data, error } = await runGet(BASE_COLUMNS_LEGACY));
+  } else if (!error && _instagramColumnPresent === null) {
+    _instagramColumnPresent = true;
+  }
   if (error) {
     console.error('[catalog.getProductBySlug]', error.message);
     return null;
@@ -290,14 +336,23 @@ export async function listRelatedProducts(
   if (baseErr || !base) return [];
 
   const baseRow = base as { id: string; audience: 'women' | 'men' | 'kids'; category_id: string | null };
-  const { data, error } = await db
-    .from('products')
-    .select(BASE_COLUMNS)
-    .eq('status', 'active')
-    .eq('audience', baseRow.audience)
-    .eq('category_id', baseRow.category_id)
-    .neq('id', baseRow.id)
-    .limit(limit);
+  const runRelated = (columns: string) =>
+    db
+      .from('products')
+      .select(columns)
+      .eq('status', 'active')
+      .eq('audience', baseRow.audience)
+      .eq('category_id', baseRow.category_id)
+      .neq('id', baseRow.id)
+      .limit(limit);
+
+  let { data, error } = await runRelated(baseColumns());
+  if (error && isMissingInstagramColumn(error)) {
+    _instagramColumnPresent = false;
+    ({ data, error } = await runRelated(BASE_COLUMNS_LEGACY));
+  } else if (!error && _instagramColumnPresent === null) {
+    _instagramColumnPresent = true;
+  }
   if (error) {
     console.error('[catalog.listRelatedProducts]', error.message);
     return [];

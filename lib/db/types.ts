@@ -63,6 +63,7 @@ export interface DbProduct {
   best_seller: boolean;
   new_arrival: boolean;
   try_on_enabled: boolean;
+  instagram_url: string | null;
   total_stock: number;
   in_stock: boolean;
   created_at: string;
