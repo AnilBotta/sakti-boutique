@@ -8,3 +8,5 @@ out
 .vercel
 next-env.d.ts
 tsconfig.tsbuildinfo
+# Migration rollback snapshots — operational output, regenerated per run.
+scripts/backups/

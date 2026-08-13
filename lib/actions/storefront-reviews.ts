@@ -1,8 +1,13 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { getServerSupabase, getAdminSupabase } from '@/lib/supabase/server';
+import { getServerSupabase } from '@/lib/supabase/server';
 import { isSupabaseConfigured } from '@/lib/supabase/env';
+import {
+  uploadToCloudinary,
+  deleteFromCloudinary,
+  isCloudinaryConfigured,
+} from '@/lib/cloudinary/server';
 import {
   REVIEW_ACCEPTED_PHOTO_TYPES,
   REVIEW_MAX_PHOTOS,
@@ -14,26 +19,12 @@ const MAX_BODY = 2000;
 const MAX_TITLE = 120;
 const MAX_NAME = 80;
 
-const PRODUCT_MEDIA_BUCKET = 'product-media';
-
 export interface CreateReviewResult {
   ok: boolean;
   message?: string;
   fieldErrors?: Partial<
     Record<'authorName' | 'rating' | 'title' | 'body' | 'photos', string>
   >;
-}
-
-function extensionForFile(file: File): string {
-  const fromName = file.name.split('.').pop()?.toLowerCase();
-  if (fromName && /^[a-z0-9]{1,5}$/.test(fromName)) return fromName;
-  const map: Record<string, string> = {
-    'image/png': 'png',
-    'image/jpeg': 'jpg',
-    'image/webp': 'webp',
-    'image/avif': 'avif',
-  };
-  return map[file.type] ?? 'bin';
 }
 
 /**
@@ -46,10 +37,9 @@ function extensionForFile(file: File): string {
  *   - moderated_at is null
  *   - customer_id is null or matches auth.uid()
  *
- * Photos are uploaded with the service-role admin client because the
- * `product-media` bucket only permits admin writes (the same constraint
- * the storefront imagery uploads run under). The server action is the
- * gate: limits, mime-types, and counts are enforced here.
+ * Photos are uploaded to Cloudinary with server-only credentials. The
+ * server action is the gate: limits, mime-types, and counts are enforced
+ * here before anything leaves the process.
  *
  * On success we revalidate the PDP — the new review starts pending so
  * it won't show to other shoppers until the operator approves it in
@@ -126,12 +116,12 @@ export async function createReviewAction(
   }
 
   // Upload photos first (if any) so the review row carries the final URLs
-  // atomically. We use the service-role admin client to bypass storage RLS
-  // — the action is the gate, not the bucket policy.
+  // atomically. Cloudinary credentials are server-only; this action is the
+  // gate — limits, mime-types, and counts are all enforced above.
   const photoUrls: string[] = [];
+  const uploadedPublicIds: string[] = [];
   if (photoFiles.length > 0) {
-    const admin = getAdminSupabase();
-    if (!admin) {
+    if (!isCloudinaryConfigured()) {
       return {
         ok: false,
         message:
@@ -141,40 +131,26 @@ export async function createReviewAction(
     const folder = `reviews/${Date.now().toString(36)}-${Math.random()
       .toString(36)
       .slice(2, 8)}`;
-    for (let i = 0; i < photoFiles.length; i++) {
-      const f = photoFiles[i];
-      const key = `${folder}/${i + 1}.${extensionForFile(f)}`;
+    for (const f of photoFiles) {
       const bytes = await f.arrayBuffer();
-      const { error: uploadErr } = await admin.storage
-        .from(PRODUCT_MEDIA_BUCKET)
-        .upload(key, bytes, {
-          cacheControl: '31536000',
-          upsert: false,
-          contentType: f.type,
-        });
-      if (uploadErr) {
-        console.error('[storefront-reviews.upload]', uploadErr.message);
-        // Best-effort cleanup so we don't leave orphans on a partial failure.
-        if (photoUrls.length > 0) {
-          await admin.storage
-            .from(PRODUCT_MEDIA_BUCKET)
-            .remove(
-              photoUrls.map(
-                (u) => u.split(`${PRODUCT_MEDIA_BUCKET}/`)[1] ?? '',
-              ),
-            )
-            .catch(() => {});
-        }
+      const res = await uploadToCloudinary(bytes, {
+        folder,
+        filename: f.name,
+      });
+      if (!res.ok) {
+        console.error('[storefront-reviews.upload]', res.message);
+        // Best-effort cleanup so a partial failure doesn't leave orphans.
+        await Promise.all(
+          uploadedPublicIds.map((id) => deleteFromCloudinary(id)),
+        ).catch(() => {});
         return {
           ok: false,
           message:
             'We couldn’t upload your photos just now. Please try again.',
         };
       }
-      const { data: pub } = admin.storage
-        .from(PRODUCT_MEDIA_BUCKET)
-        .getPublicUrl(key);
-      photoUrls.push(pub.publicUrl);
+      uploadedPublicIds.push(res.data.publicId);
+      photoUrls.push(res.data.url);
     }
   }
 
