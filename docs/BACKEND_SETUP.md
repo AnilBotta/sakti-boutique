@@ -20,7 +20,7 @@ real credentials land.
 | Product editor validation | ✅ | `lib/validation/product.ts` |
 | Admin product save/archive action contracts | ✅ placeholder-safe | `lib/actions/admin-products.ts` |
 | Admin auth gating seam | ✅ placeholder admin session in dev | `lib/auth/admin.ts` |
-| Storage upload seam (signed URL contract) | ✅ typed contracts only | `lib/storage/product-media.ts` |
+| Media upload seam (Cloudinary) | ✅ live | `lib/cloudinary/server.ts` |
 
 Every repository branches on `isSupabaseConfigured()`. When false, the
 functions return the same placeholder data the UI already uses from
@@ -40,6 +40,43 @@ SUPABASE_SERVICE_ROLE_KEY=<service-role-key>   # server-only, never public
 `SUPABASE_SERVICE_ROLE_KEY` is only consumed by server-side paths
 (`lib/supabase/client.ts#getAdminSupabase`). It must never be imported from a
 `'use client'` file or exposed in a `NEXT_PUBLIC_` var.
+
+## Media hosting (Cloudinary)
+
+All images — product galleries, storefront editorial imagery, and customer
+review photos — are stored in Cloudinary, not Supabase Storage.
+
+```env
+CLOUDINARY_CLOUD_NAME=<cloud-name>
+CLOUDINARY_API_KEY=<api-key>
+CLOUDINARY_API_SECRET=<api-secret>   # server-only, never public
+```
+
+All three are server-only and consumed exclusively by
+`lib/cloudinary/server.ts`, which is marked `server-only`. Uploads run
+through Server Actions gated by `requireAdmin()` (admin media) or by
+per-request validation (review photos), so the secret never reaches the
+browser and there is no unsigned upload preset to abuse.
+
+Delivery URLs carry `f_auto,q_auto`, so Cloudinary negotiates AVIF/WebP and
+a perceptual quality target per request. That is why uploaded images render
+with `unoptimized` — routing them through the Next.js optimizer as well
+would be redundant work for a worse result.
+
+`storage_path` columns now hold the Cloudinary `public_id` rather than a
+bucket object key. The column name is retained to avoid a schema migration.
+
+### Migrating / auditing
+
+```bash
+node scripts/audit-images.mjs                    # where do URLs point today?
+node scripts/migrate-to-cloudinary.mjs           # dry run
+node scripts/migrate-to-cloudinary.mjs --execute # commit, writes a rollback backup
+```
+
+The migration is idempotent — rows already on Cloudinary are skipped, so a
+partial run can simply be re-run. It never deletes from Supabase Storage;
+the old bucket stays as a safety net until you drop it deliberately.
 
 ## What Step 10B must do
 

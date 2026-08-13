@@ -3,28 +3,25 @@
 /**
  * Server-side upload actions for admin media.
  *
- * Why this exists:
- *   Uploading directly from the browser to Supabase Storage was failing
- *   with "new row violates row-level security policy" on the deployed
- *   admin. The Storage SDK does not reliably attach the user's JWT to
- *   `supabase.storage.upload(...)` when the session is cookie-resident
- *   (a known quirk with `@supabase/ssr` + Storage), so the request
- *   hit the bucket as the anon role and the
- *   `app_metadata.role = 'admin'` RLS check failed.
+ * Media lives in Cloudinary (migrated off Supabase Storage). Uploads run
+ * through a Server Action gated by `requireAdmin()` so the API secret never
+ * reaches the browser and the caller's role is authoritatively verified
+ * server-side from the session cookie.
  *
- * The fix: route uploads through a Server Action gated by `requireAdmin()`,
- * which has access to cookies on the server and can authoritatively
- * verify the caller's role. The action then uses the service-role
- * admin client to write the object — bypassing storage RLS safely
- * because the action itself is the gate.
+ * The return shape is deliberately unchanged from the Supabase era:
+ *   { storagePath, publicUrl }
+ * `storagePath` now carries the Cloudinary `public_id` instead of a bucket
+ * object key, so `product_images.storage_path` / `site_imagery.storage_path`
+ * keep working without a schema change.
  */
 
-import { getAdminSupabase } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/auth/admin';
+import {
+  uploadToCloudinary,
+  deleteFromCloudinary,
+  publicIdFromUrl,
+} from '@/lib/cloudinary/server';
 
-// `use server` files can only export async functions. Constants and types
-// live alongside the client wrapper in `lib/admin/product-media-upload.ts`.
-const PRODUCT_MEDIA_BUCKET = 'product-media';
 const ACCEPTED_IMAGE_TYPES = [
   'image/png',
   'image/jpeg',
@@ -37,36 +34,30 @@ type UploadActionResult =
   | { ok: true; storagePath: string; publicUrl: string }
   | { ok: false; message: string };
 
-type DeleteActionResult =
-  | { ok: true }
-  | { ok: false; message: string };
+type DeleteActionResult = { ok: true } | { ok: false; message: string };
 
-function extensionForFile(file: File): string {
-  const fromName = file.name.split('.').pop()?.toLowerCase();
-  if (fromName && /^[a-z0-9]{1,5}$/.test(fromName)) return fromName;
-  const map: Record<string, string> = {
-    'image/png': 'png',
-    'image/jpeg': 'jpg',
-    'image/webp': 'webp',
-    'image/avif': 'avif',
-  };
-  return map[file.type] ?? 'bin';
-}
-
-function makeObjectKey(scope: string, file: File): string {
-  const safeScope = (scope || 'unsaved').replace(/[^a-zA-Z0-9_-]/g, '');
-  const random = Math.random().toString(36).slice(2, 8);
-  const ext = extensionForFile(file);
-  return `products/${safeScope}/${Date.now()}-${random}.${ext}`;
+/**
+ * Map an arbitrary caller-supplied scope onto a Cloudinary folder.
+ *
+ * Product editor passes a product id; the storefront imagery editor passes
+ * `site-<slot>`. Keep those in separate folder trees so the Cloudinary media
+ * library stays browsable.
+ */
+function folderForScope(scope: string): string {
+  const safe = (scope || 'unsaved').replace(/[^a-zA-Z0-9_-]/g, '');
+  if (safe.startsWith('site-')) {
+    return `site/${safe.slice('site-'.length) || 'misc'}`;
+  }
+  return `products/${safe}`;
 }
 
 /**
- * Upload a single image to the `product-media` bucket. Gated by admin role.
+ * Upload a single image to Cloudinary. Gated by admin role.
  *
  * The form data must include:
  *   - `file`  : the File blob
- *   - `scope` : an arbitrary identifier (product id, slot name, etc.) used
- *               to namespace the storage key. Falls back to `unsaved`.
+ *   - `scope` : an identifier (product id, `site-<slot>`, …) used to choose
+ *               the destination folder. Falls back to `unsaved`.
  */
 export async function uploadProductMediaAction(
   formData: FormData,
@@ -97,43 +88,28 @@ export async function uploadProductMediaAction(
     return { ok: false, message: 'File is larger than 8MB.' };
   }
 
-  const admin = getAdminSupabase();
-  if (!admin) {
-    return {
-      ok: false,
-      message:
-        'Supabase service-role credentials are not configured on the server.',
-    };
-  }
-
-  const key = makeObjectKey(scope, file);
-
-  // Convert File → Buffer/ArrayBuffer for the storage SDK. node-fetch's File
-  // implementation exposes `arrayBuffer()`.
   const bytes = await file.arrayBuffer();
-
-  const { error: uploadErr } = await admin.storage
-    .from(PRODUCT_MEDIA_BUCKET)
-    .upload(key, bytes, {
-      cacheControl: '31536000',
-      upsert: false,
-      contentType: file.type,
-    });
-  if (uploadErr) {
-    return { ok: false, message: uploadErr.message };
+  const res = await uploadToCloudinary(bytes, {
+    folder: folderForScope(scope),
+    filename: file.name,
+  });
+  if (!res.ok) {
+    return { ok: false, message: res.message };
   }
 
-  const { data: pub } = admin.storage
-    .from(PRODUCT_MEDIA_BUCKET)
-    .getPublicUrl(key);
-
-  return { ok: true, storagePath: key, publicUrl: pub.publicUrl };
+  return {
+    ok: true,
+    storagePath: res.data.publicId,
+    publicUrl: res.data.url,
+  };
 }
 
 /**
- * Delete a previously uploaded object. Best-effort — silently swallows
- * errors for the caller because storage cleanup must never block the
- * editor save flow. Still gated by admin role.
+ * Delete a previously uploaded asset. Best-effort — callers treat failure as
+ * non-fatal because cleanup must never block the editor save flow.
+ *
+ * Accepts either a Cloudinary `public_id` or a full delivery URL, so legacy
+ * rows that stored a URL in `storage_path` still resolve.
  */
 export async function deleteProductMediaAction(
   storagePath: string,
@@ -144,11 +120,17 @@ export async function deleteProductMediaAction(
   } catch {
     return { ok: false, message: 'Admin access required.' };
   }
-  const admin = getAdminSupabase();
-  if (!admin) return { ok: false, message: 'Service role unavailable.' };
-  const { error } = await admin.storage
-    .from(PRODUCT_MEDIA_BUCKET)
-    .remove([storagePath]);
-  if (error) return { ok: false, message: error.message };
+
+  const publicId = storagePath.startsWith('http')
+    ? publicIdFromUrl(storagePath)
+    : storagePath;
+  if (!publicId) {
+    // Nothing we can act on (e.g. a legacy Supabase URL). Treat as success so
+    // the caller's remove-from-gallery flow still completes.
+    return { ok: true };
+  }
+
+  const res = await deleteFromCloudinary(publicId);
+  if (!res.ok) return { ok: false, message: res.message };
   return { ok: true };
 }
