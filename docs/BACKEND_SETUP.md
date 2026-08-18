@@ -66,6 +66,34 @@ would be redundant work for a worse result.
 `storage_path` columns now hold the Cloudinary `public_id` rather than a
 bucket object key. The column name is retained to avoid a schema migration.
 
+## Integrations panel (Stripe + USPS keys)
+
+The store owner enters their **own** Stripe and USPS API keys in
+`/admin/integrations` (sandbox now, live later). Because env vars can't rotate
+from a UI, those keys live in the `integration_settings` table
+(`supabase/migrations/0013_integration_settings.sql`) **encrypted at rest**, not
+in `process.env`. The only new static secret this requires is the master key
+used to encrypt/decrypt them:
+
+```env
+APP_ENCRYPTION_KEY=<32 bytes, base64>   # server-only; generate: openssl rand -base64 32
+```
+
+- Consumed exclusively by `lib/crypto/secrets.ts` (marked `server-only`), which
+  does AES-256-GCM encrypt/decrypt. Never expose it or prefix it with
+  `NEXT_PUBLIC_`.
+- `integration_settings` has an admin-write RLS policy and **no** public/
+  authenticated read policy — the app reads it only through the service-role
+  client (`getAdminSupabase`). Decrypted keys never leave server-only modules;
+  the admin UI shows masked last-4 hints only.
+- If `APP_ENCRYPTION_KEY` is unset (or not 32 bytes), the panel renders but
+  saving keys is disabled — no plaintext fallback.
+
+Setup once per environment (local + Vercel): add `APP_ENCRYPTION_KEY`, apply the
+`0013` migration, then paste the Stripe + USPS keys in the admin panel. For
+Stripe webhooks (Phase 3), register the endpoint in the Stripe dashboard and
+paste its signing secret into the panel.
+
 ### Migrating / auditing
 
 ```bash

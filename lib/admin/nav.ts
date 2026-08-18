@@ -12,6 +12,7 @@ import {
   BellRing,
   Image as ImageIcon,
   Mail,
+  Plug,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -38,10 +39,16 @@ export type AdminNavKey =
   | 'content'
   | 'storefrontImagery'
   | 'amazon'
-  | 'tryon';
+  | 'tryon'
+  | 'integrations';
 
 /** Stable machine id for a nav section group. */
-export type AdminNavSection = 'overview' | 'catalog' | 'commerce' | 'channels';
+export type AdminNavSection =
+  | 'overview'
+  | 'catalog'
+  | 'commerce'
+  | 'channels'
+  | 'system';
 
 /**
  * Placeholder keys for future live badge/count indicators. Resolving these
@@ -236,6 +243,21 @@ export const adminNav: AdminNavGroup[] = [
         description: 'Virtual Try-On job health, success rates, and eligibility.',
         badgeKey: 'tryon.failed',
         scaffoldOnly: true,
+      },
+    ],
+  },
+  {
+    key: 'system',
+    label: 'System',
+    items: [
+      {
+        key: 'integrations',
+        label: 'Integrations',
+        href: '/admin/integrations',
+        section: 'system',
+        icon: Plug,
+        eyebrow: 'System',
+        description: 'Connect your own Stripe and USPS accounts — keys stay encrypted and server-side.',
       },
     ],
   },
