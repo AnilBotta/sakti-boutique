@@ -65,6 +65,20 @@ export interface EditableChannel {
   lastSyncError?: string | null;
 }
 
+/**
+ * Shipping parameters used by the USPS rating service at checkout. All fields
+ * are optional (null) — a product with no weight/dimensions falls back to the
+ * default box configured in the Integrations panel.
+ */
+export interface EditableShipping {
+  /** Weight in ounces. */
+  weightOz: number | null;
+  /** Package dimensions in inches. */
+  length: number | null;
+  width: number | null;
+  height: number | null;
+}
+
 export interface EditableProduct {
   id: string;
   status: ProductStatus;
@@ -82,6 +96,7 @@ export interface EditableProduct {
    * "Watch on Instagram" button so shoppers can see the piece in motion.
    */
   instagramUrl: string | null;
+  shipping: EditableShipping;
   variants: EditableVariant[];
   media: EditableMedia[];
   seo: EditableSeo;
@@ -186,6 +201,7 @@ export function makeEmptyEditableProduct(): EditableProduct {
     price: 0,
     originalPrice: null,
     instagramUrl: null,
+    shipping: { weightOz: null, length: null, width: null, height: null },
     variants: [makeEmptyVariant()],
     media: [],
     seo: {
@@ -272,6 +288,7 @@ export function toEditableProduct(slugOrId: string): EditableProduct | null {
     price: source.price,
     originalPrice: source.originalPrice ?? null,
     instagramUrl: null,
+    shipping: { weightOz: null, length: null, width: null, height: null },
     variants,
     media,
     seo: {
