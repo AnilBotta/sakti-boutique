@@ -14,6 +14,7 @@ import { AdminProductStatusBar } from './AdminProductStatusBar';
 import { BasicInfoCard } from './BasicInfoCard';
 import { PricingCard } from './PricingCard';
 import { InventoryCard } from './InventoryCard';
+import { ShippingCard } from './ShippingCard';
 import { CategoryAssignmentCard } from './CategoryAssignmentCard';
 import { VariantMatrix } from './VariantMatrix';
 import { MediaGalleryField } from './MediaGalleryField';
@@ -252,6 +253,15 @@ export function ProductEditor({ initial, mode }: ProductEditorProps) {
 
         <AdminFormSection
           step="08"
+          eyebrow="Shipping"
+          title="Weight and package size"
+          description="Used to calculate live USPS shipping at checkout. Enter the packed weight; dimensions are optional. Blank falls back to the default box in Settings → Integrations."
+        >
+          <ShippingCard product={product} onChange={patch} />
+        </AdminFormSection>
+
+        <AdminFormSection
+          step="09"
           eyebrow="SEO"
           title="Search visibility"
           description="Slug, meta title, and description. Previewed as a Google-style snippet below."
@@ -266,7 +276,7 @@ export function ProductEditor({ initial, mode }: ProductEditorProps) {
         </AdminFormSection>
 
         <AdminFormSection
-          step="09"
+          step="10"
           eyebrow="Merchandising"
           title="Flags and badges"
           description="Control which promotional badges appear on product cards and homepage rails."
@@ -275,7 +285,7 @@ export function ProductEditor({ initial, mode }: ProductEditorProps) {
         </AdminFormSection>
 
         <AdminFormSection
-          step="10"
+          step="11"
           eyebrow="Channels"
           title="Amazon channel mapping"
           description="The Sakthi storefront is the primary brand experience. Amazon is a secondary channel."
@@ -288,7 +298,7 @@ export function ProductEditor({ initial, mode }: ProductEditorProps) {
         </AdminFormSection>
 
         <AdminFormSection
-          step="11"
+          step="12"
           eyebrow="Experiences"
           title="Virtual Try-On eligibility"
           description="Enable Try Me on products with clean, mask-ready imagery."

@@ -64,6 +64,12 @@ export interface DbProduct {
   new_arrival: boolean;
   try_on_enabled: boolean;
   instagram_url: string | null;
+  /** Shipping weight in ounces (null → USPS default box weight applies). */
+  weight_oz: number | null;
+  /** Package dimensions in inches (null → USPS default box applies). */
+  length_in: number | null;
+  width_in: number | null;
+  height_in: number | null;
   total_stock: number;
   in_stock: boolean;
   created_at: string;

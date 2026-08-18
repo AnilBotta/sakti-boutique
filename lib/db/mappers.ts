@@ -158,6 +158,12 @@ export function dbProductToEditable(full: DbProductFull): EditableProduct {
     originalPrice:
       full.original_price != null ? Number(full.original_price) : null,
     instagramUrl: full.instagram_url ?? null,
+    shipping: {
+      weightOz: full.weight_oz != null ? Number(full.weight_oz) : null,
+      length: full.length_in != null ? Number(full.length_in) : null,
+      width: full.width_in != null ? Number(full.width_in) : null,
+      height: full.height_in != null ? Number(full.height_in) : null,
+    },
     variants: variants
       .slice()
       .sort((a, b) => a.position - b.position)
@@ -198,6 +204,10 @@ export interface ProductWritePayload {
     new_arrival: boolean;
     try_on_enabled: boolean;
     instagram_url: string | null;
+    weight_oz: number | null;
+    length_in: number | null;
+    width_in: number | null;
+    height_in: number | null;
   };
   variants: Array<
     Omit<DbProductVariant, 'id' | 'product_id' | 'created_at' | 'updated_at'> & {
@@ -238,6 +248,10 @@ export function editableToWritePayload(p: EditableProduct): ProductWritePayload 
       new_arrival: p.flags.newArrival,
       try_on_enabled: p.flags.tryOnEnabled,
       instagram_url: p.instagramUrl?.trim() || null,
+      weight_oz: normalizeMeasure(p.shipping?.weightOz),
+      length_in: normalizeMeasure(p.shipping?.length),
+      width_in: normalizeMeasure(p.shipping?.width),
+      height_in: normalizeMeasure(p.shipping?.height),
     },
     variants: p.variants.map((v, i) => ({
       size: v.size || null,
@@ -272,6 +286,14 @@ export function editableToWritePayload(p: EditableProduct): ProductWritePayload 
 // ---------------------------------------------------------------------------
 // Tiny helpers
 // ---------------------------------------------------------------------------
+
+/** Coerce a shipping measure to a non-negative number, or null when unset. */
+function normalizeMeasure(v: number | null | undefined): number | null {
+  if (v == null) return null;
+  const n = Number(v);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return n;
+}
 
 function uniq<T>(arr: T[]): T[] {
   return Array.from(new Set(arr));
