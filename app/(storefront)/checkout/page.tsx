@@ -1,12 +1,11 @@
 'use client';
 
 import { useState, useTransition, type FormEvent } from 'react';
-import { useRouter } from 'next/navigation';
 import { Container } from '@/components/layout/Container';
 import { CheckoutSection } from '@/components/checkout/CheckoutSection';
 import { CheckoutFormField } from '@/components/checkout/CheckoutFormField';
 import { useCart, selectSubtotal } from '@/lib/cart/store';
-import { prepareCheckoutAction } from '@/lib/actions/checkout';
+import { prepareCheckoutAction, startCheckoutAction } from '@/lib/actions/checkout';
 import type { PrepareCheckoutResult } from '@/lib/shipping/types';
 import { cn } from '@/lib/utils/cn';
 
@@ -15,7 +14,6 @@ type Errors = Partial<Record<string, string>>;
 const money = (n: number) => `$${n.toFixed(2)}`;
 
 export default function CheckoutPage() {
-  const router = useRouter();
   const items = useCart((s) => s.items);
   const subtotal = useCart(selectSubtotal);
 
@@ -31,7 +29,6 @@ export default function CheckoutPage() {
     zip: '',
     country: 'United States',
   });
-  const [payment, setPayment] = useState<'card' | 'other'>('card');
   const [billingSame, setBillingSame] = useState(true);
   const [errors, setErrors] = useState<Errors>({});
 
@@ -40,6 +37,10 @@ export default function CheckoutPage() {
   const [selectedShipId, setSelectedShipId] = useState<string | null>(null);
   const [rateError, setRateError] = useState<string | null>(null);
   const [loadingRates, startRates] = useTransition();
+
+  // Payment
+  const [payError, setPayError] = useState<string | null>(null);
+  const [paying, startPay] = useTransition();
 
   function set<K extends keyof typeof form>(k: K, v: string) {
     setForm((f) => ({ ...f, [k]: v }));
@@ -112,11 +113,41 @@ export default function CheckoutPage() {
 
   function onSubmit(e: FormEvent) {
     e.preventDefault();
+    setPayError(null);
     const v = validateAddressForm();
     setErrors(v);
     if (Object.keys(v).length > 0) return;
-    // Payment is wired in the next phase. For now, preview the order.
-    router.push('/checkout/confirmation?demo=1');
+    if (!prep || !selectedOption) {
+      setPayError('Please get shipping options and choose one first.');
+      return;
+    }
+    startPay(async () => {
+      const res = await startCheckoutAction({
+        contact: { email: form.email, phone: form.phone || undefined },
+        address: {
+          firstName: form.firstName,
+          lastName: form.lastName,
+          address1: form.address1,
+          address2: form.address2,
+          city: form.city,
+          state: form.state,
+          zip: form.zip,
+          country: form.country,
+        },
+        items: items.map((i) => ({
+          productId: i.productId,
+          quantity: i.quantity,
+          size: i.variant.size,
+          color: i.variant.color,
+        })),
+        shippingOptionId: selectedOption.id,
+      });
+      if (res.ok) {
+        window.location.href = res.url; // → Stripe Hosted Checkout
+      } else {
+        setPayError(res.message);
+      }
+    });
   }
 
   if (items.length === 0) {
@@ -303,22 +334,11 @@ export default function CheckoutPage() {
           </CheckoutSection>
 
           <CheckoutSection step={4} title="Payment" description="All transactions are secure and encrypted.">
-            <RadioCard
-              name="payment"
-              value="card"
-              selected={payment === 'card'}
-              onSelect={() => setPayment('card')}
-              title="Credit / Debit Card"
-              meta="Visa, Mastercard, Amex"
-            />
-            <RadioCard
-              name="payment"
-              value="other"
-              selected={payment === 'other'}
-              onSelect={() => setPayment('other')}
-              title="Other"
-              meta="Additional methods available soon"
-            />
+            <div className="border border-border-hairline bg-bg-subtle px-5 py-4 text-caption text-text-secondary">
+              You&rsquo;ll enter your card details on the next screen, hosted
+              securely by <span className="font-medium text-text-primary">Stripe</span>.
+              Your card information never touches this site.
+            </div>
           </CheckoutSection>
 
           <CheckoutSection step={5} title="Billing Address">
@@ -339,15 +359,18 @@ export default function CheckoutPage() {
             )}
           </CheckoutSection>
 
+          {payError && (
+            <p className="text-caption text-state-danger" role="alert">{payError}</p>
+          )}
           <button
             type="submit"
-            className="mt-4 flex min-h-[56px] items-center justify-center bg-text-primary px-7 text-caption font-medium uppercase tracking-[0.16em] text-bg-canvas transition-opacity duration-fast ease-standard hover:opacity-90"
+            disabled={paying || !prep || !selectedOption}
+            className="mt-4 flex min-h-[56px] items-center justify-center bg-text-primary px-7 text-caption font-medium uppercase tracking-[0.16em] text-bg-canvas transition-opacity duration-fast ease-standard hover:opacity-90 disabled:opacity-50"
           >
-            Preview Order Summary
+            {paying ? 'Redirecting to payment…' : `Continue to payment — ${money(total)}`}
           </button>
           <p className="text-caption text-text-muted">
-            Preview mode — card payment is being wired next, so no charge is made
-            and no order is placed yet.
+            You&rsquo;ll be redirected to Stripe to complete payment securely.
           </p>
         </form>
 
