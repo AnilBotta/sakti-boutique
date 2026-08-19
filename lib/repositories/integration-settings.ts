@@ -209,6 +209,75 @@ export async function getActiveSecrets(
   return { mode: row.mode, enabled: row.enabled, secrets: blob[row.mode] ?? {} };
 }
 
+/**
+ * Full runtime config for the USPS integration — decrypted active-mode
+ * credentials plus the (non-secret) shipping settings. Server-only; consumed
+ * by the checkout rating service. `configured` is true only when the keys,
+ * origin ZIP, and at least one service are present AND the integration is
+ * enabled — callers fall back to flat-rate shipping otherwise.
+ */
+export interface UspsRuntimeConfig {
+  configured: boolean;
+  enabled: boolean;
+  mode: IntegrationMode;
+  consumerKey: string;
+  consumerSecret: string;
+  originZip: string;
+  enabledServices: string[];
+  priceType: 'RETAIL' | 'COMMERCIAL';
+  accountNumber: string;
+  defaultBox: UspsDefaultBox;
+  handling: UspsHandling;
+}
+
+const DEFAULT_BOX: UspsDefaultBox = { weightOz: 16, length: 12, width: 10, height: 3 };
+const DEFAULT_HANDLING: UspsHandling = { type: 'flat', amount: 0 };
+
+export async function getUspsConfig(): Promise<UspsRuntimeConfig | null> {
+  if (!isSupabaseAdminConfigured() || !isEncryptionConfigured()) return null;
+  const row = await fetchRow('usps');
+  if (!row) return null;
+  const blob = readBlob(row);
+  const secrets = blob[row.mode] ?? {};
+  const pc = (row.public_config ?? {}) as Record<string, unknown>;
+
+  const box = (pc.defaultBox ?? {}) as Record<string, unknown>;
+  const handling = (pc.handling ?? {}) as Record<string, unknown>;
+  const consumerKey = secrets.consumerKey ?? '';
+  const consumerSecret = secrets.consumerSecret ?? '';
+  const originZip = typeof pc.originZip === 'string' ? pc.originZip : '';
+  const enabledServices = Array.isArray(pc.enabledServices)
+    ? (pc.enabledServices as string[])
+    : [];
+
+  return {
+    configured:
+      row.enabled &&
+      !!consumerKey &&
+      !!consumerSecret &&
+      !!originZip &&
+      enabledServices.length > 0,
+    enabled: row.enabled,
+    mode: row.mode,
+    consumerKey,
+    consumerSecret,
+    originZip,
+    enabledServices,
+    priceType: pc.priceType === 'COMMERCIAL' ? 'COMMERCIAL' : 'RETAIL',
+    accountNumber: typeof pc.accountNumber === 'string' ? pc.accountNumber : '',
+    defaultBox: {
+      weightOz: Number(box.weightOz) || DEFAULT_BOX.weightOz,
+      length: Number(box.length) || DEFAULT_BOX.length,
+      width: Number(box.width) || DEFAULT_BOX.width,
+      height: Number(box.height) || DEFAULT_BOX.height,
+    },
+    handling: {
+      type: handling.type === 'percent' ? 'percent' : 'flat',
+      amount: Number(handling.amount) || DEFAULT_HANDLING.amount,
+    },
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Writes — service role + encryption required.
 // ---------------------------------------------------------------------------

@@ -188,7 +188,12 @@ export async function testStripeConnectionAction(
   }
 }
 
-const USPS_OAUTH_URL = 'https://apis.usps.com/oauth2/v3/token';
+// USPS hosts: production vs test/CAT. Test keys only authenticate against the
+// test host, so the connection check must be mode-aware.
+function uspsOauthUrl(mode: IntegrationMode): string {
+  const host = mode === 'live' ? 'https://apis.usps.com' : 'https://apis-tem.usps.com';
+  return `${host}/oauth2/v3/token`;
+}
 
 export async function testUspsConnectionAction(
   mode: IntegrationMode,
@@ -202,7 +207,7 @@ export async function testUspsConnectionAction(
     return { ok: false, message: `No USPS ${mode} keys saved yet.` };
   }
   try {
-    const res = await fetch(USPS_OAUTH_URL, {
+    const res = await fetch(uspsOauthUrl(mode), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
