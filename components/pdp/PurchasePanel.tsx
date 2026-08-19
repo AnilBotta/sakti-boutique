@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Heart, ShieldCheck, Truck, RotateCcw } from 'lucide-react';
 import type { ProductDetails } from '@/lib/catalog/product-details';
+import { useCart } from '@/lib/cart/store';
 import { cn } from '@/lib/utils/cn';
 import { Price } from './Price';
 import { VariantPicker } from './VariantPicker';
@@ -22,6 +23,10 @@ interface PurchasePanelProps {
 export function PurchasePanel({ product, eyebrow }: PurchasePanelProps) {
   const soldOut = !product.inStock;
   const hasSizes = product.sizes.length > 0 && product.sizes[0] !== 'Free Size';
+  const hasColors = product.colors.length > 1;
+
+  const addToCart = useCart((s) => s.add);
+  const openCart = useCart((s) => s.open);
 
   const [size, setSize] = useState<string | null>(
     !hasSizes ? product.sizes[0] ?? null : null,
@@ -30,6 +35,7 @@ export function PurchasePanel({ product, eyebrow }: PurchasePanelProps) {
     product.colors.length === 1 ? product.colors[0] : null,
   );
   const [sizeError, setSizeError] = useState<string | undefined>();
+  const [added, setAdded] = useState(false);
   const [wishlisted, setWishlisted] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
 
@@ -40,10 +46,27 @@ export function PurchasePanel({ product, eyebrow }: PurchasePanelProps) {
       return;
     }
     setSizeError(undefined);
-    // No-op shell — real cart wiring lands in Step 7.
+
+    const chosenSize = hasSizes ? size ?? undefined : undefined;
+    const chosenColor = color ?? (hasColors ? undefined : product.colors[0]);
+
+    addToCart({
+      id: `${product.id}:${chosenSize ?? ''}:${chosenColor ?? ''}`,
+      productId: product.id,
+      slug: product.slug,
+      name: product.name,
+      variant: { size: chosenSize, color: chosenColor },
+      price: product.price,
+      originalPrice: product.originalPrice ?? undefined,
+      image: product.images[0] ?? '',
+      quantity: 1,
+    });
+    openCart();
+    setAdded(true);
+    window.setTimeout(() => setAdded(false), 1800);
   }
 
-  const ctaLabel = soldOut ? 'Sold Out' : 'Add to Cart';
+  const ctaLabel = soldOut ? 'Sold Out' : added ? 'Added ✓' : 'Add to Cart';
 
   return (
     <>
